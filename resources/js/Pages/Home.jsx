@@ -42,9 +42,9 @@ export default function Home({}) {
                     iconColor="purple"
                 />
             </section>
-            <section className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_3fr]">
-                <ChartCard />
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-[3fr_2fr]">
                 <RankTableCard />
+                <ChartCard />
             </section>
         </div>
     );
