@@ -3,6 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\ServiceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,6 +20,23 @@ Route::get('/', function () {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Rute API / Bot (tanpa CSRF)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['web'])->group(function () {
+    // Rute untuk mendapatkan detail satu layanan
+    Route::get('/services/{service}', [ServiceController::class, 'show']);
+
+    // Rute untuk membuat order dari bot Telegram (n8n)
+
+    Route::prefix('api')->middleware('n8n')->group(function () {
+        Route::post('/orders/create-from-bot', [\App\Http\Controllers\Api\OrderController::class, 'createFromBot']);
+    });
+});
+
 
 /*
 |--------------------------------------------------------------------------
@@ -42,11 +61,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/customers', function () {
             return Inertia::render('Customers');
         })->name('customers');
-
         Route::get('/services', function () {
             return Inertia::render('Services');
         })->name('services');
-
         Route::get('/orders', function () {
             return Inertia::render('Orders');
         })->name('orders');

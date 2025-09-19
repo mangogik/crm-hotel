@@ -16,8 +16,14 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
+            'n8n' => \App\Http\Middleware\AuthenticateN8nWebhook::class,
+        ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'api/orders/create-from-bot', 
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
