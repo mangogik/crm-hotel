@@ -1,1 +1,0 @@
-import{j as e}from"./app-DweZtUQi.js";import{A as r}from"./AuthenticatedLayout-BA4A10Jo.js";import"./button-Du6bkyGa.js";import"./index-DmH5PMV0.js";function s(){return e.jsxs("div",{className:"p-6",children:[e.jsx("h1",{className:"text-xl font-bold",children:"Services"}),e.jsx("p",{children:"Ini Halaman Services."})]})}s.layout=t=>e.jsx(r,{children:t});export{s as default};

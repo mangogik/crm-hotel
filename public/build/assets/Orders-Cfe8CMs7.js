@@ -1,1 +1,0 @@
-import{j as r}from"./app-DweZtUQi.js";import{A as s}from"./AuthenticatedLayout-BA4A10Jo.js";import"./button-Du6bkyGa.js";import"./index-DmH5PMV0.js";function e(){return r.jsxs("div",{className:"p-6",children:[r.jsx("h1",{className:"text-xl font-bold",children:"Orders"}),r.jsx("p",{children:"Ini Halaman Orders"})]})}e.layout=t=>r.jsx(s,{children:t});export{e as default};
