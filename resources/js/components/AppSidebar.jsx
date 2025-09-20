@@ -27,7 +27,6 @@ import {
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Link, usePage } from "@inertiajs/react";
-
 import Logo from "@/assets/images/Logo.jpg";
 
 // Menu items, tambahkan allowedRoles
@@ -51,7 +50,7 @@ const items = [
         allowedRoles: ["front-office"],
     },
     {
-        title: "Order",
+        title: "Orders",
         url: "/orders",
         icon: ClipboardList,
         allowedRoles: ["front-office"],
@@ -71,8 +70,11 @@ export function AppSidebar() {
     const role = props.auth.user.role;
     const userRole = role.charAt(0).toUpperCase() + role.slice(1);
 
+    // Extract the base path without query parameters
+    const basePath = url.split('?')[0];
+
     return (
-        <Sidebar className="w-64 flex-shrink-0">
+        <Sidebar className="bg-background w-64 flex-shrink-0">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
@@ -105,7 +107,6 @@ export function AppSidebar() {
                     <SidebarGroupContent>
                         <SidebarMenu>
                             {items.map((item) => {
-                                // sembunyikan menu jika user tidak punya role yang diizinkan
                                 if (
                                     item.allowedRoles &&
                                     !hasAnyRole(item.allowedRoles)
@@ -113,10 +114,8 @@ export function AppSidebar() {
                                     return null;
                                 }
 
-                                // aktif jika url persis atau mulai dengan path itu
-                                const active =
-                                    url === item.url ||
-                                    url.startsWith(item.url + "/");
+                                // Check if the base path matches the item URL
+                                const active = basePath === item.url;
 
                                 return (
                                     <SidebarMenuItem key={item.title}>

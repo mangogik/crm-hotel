@@ -10,9 +10,15 @@ class Customer extends Model
         'name',
         'email',
         'phone',
+        'passport_country',
         'checkin_at',
         'checkout_at',
         'notes'
+    ];
+
+    protected $casts = [
+        'checkin_at'  => 'datetime',
+        'checkout_at' => 'datetime',
     ];
 
     public function orders()

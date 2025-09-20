@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\CustomerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -59,9 +60,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // --- HANYA BISA DIAKSES MANAGER ---
     Route::middleware(['role:front-office'])->group(function () {
-        Route::get('/customers', function () {
-            return Inertia::render('Customers');
-        })->name('customers');
+        Route::resource('customers', CustomerController::class);
         Route::get('/services', function () {
             return Inertia::render('Services');
         })->name('services');
