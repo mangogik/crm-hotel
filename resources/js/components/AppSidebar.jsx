@@ -42,19 +42,19 @@ const items = [
         title: "Customers",
         url: "/customers",
         icon: User,
-        allowedRoles: ["manager", "front-office"],
+        allowedRoles: ["front-office"],
     },
     {
         title: "Services",
         url: "/services",
         icon: HandPlatter,
-        allowedRoles: ["manager", "front-office"],
+        allowedRoles: ["front-office"],
     },
     {
         title: "Order",
         url: "/orders",
         icon: ClipboardList,
-        allowedRoles: ["manager", "front-office"],
+        allowedRoles: ["front-office"],
     },
     {
         title: "History",
@@ -87,7 +87,7 @@ export function AppSidebar() {
                                 </div>
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-semibold">
-                                        Tohjaya Hotel
+                                        CRM Hotel
                                     </span>
                                     <span className="truncate text-xs">
                                         {userRole}

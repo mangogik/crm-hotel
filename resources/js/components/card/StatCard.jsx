@@ -4,7 +4,6 @@ import {
     CardHeader,
     CardTitle,
     CardContent,
-    CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +26,18 @@ const iconMap = {
     calendar: Calendar,
 };
 
+// 1. Buat objek pemetaan untuk semua kemungkinan kelas
+const colorStyles = {
+    positive: {
+        badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+        arrow: "text-emerald-600",
+    },
+    negative: {
+        badge: "border-red-200 bg-red-50 text-red-700",
+        arrow: "text-red-600",
+    },
+};
+
 export default function StatCard({
     title,
     metric,
@@ -44,39 +55,21 @@ export default function StatCard({
     const ArrowIcon = isPositive ? ArrowUpRight : ArrowDownRight;
     const IconComponent = icon ? iconMap[icon] : null;
 
-    const color = isPositive ? "emerald" : "red";
-    const changeValue = change ? change.replace(/[+\-%]/g, "") : "0";
-    const progress = Math.min(parseInt(changeValue) || 0, 100);
-
     const colorMap = {
-        blue: {
-            bg: "bg-blue-100",
-            text: "text-blue-600",
-        },
-        green: {
-            bg: "bg-green-100",
-            text: "text-green-600",
-        },
-        purple: {
-            bg: "bg-purple-100",
-            text: "text-purple-600",
-        },
-        red: {
-            bg: "bg-red-100",
-            text: "text-red-600",
-        },
+        blue: { bg: "bg-blue-100", text: "text-blue-600" },
+        green: { bg: "bg-green-100", text: "text-green-600" },
+        purple: { bg: "bg-purple-100", text: "text-purple-600" },
+        red: { bg: "bg-red-100", text: "text-red-600" },
     };
     const colors = colorMap[iconColor] || colorMap.blue;
 
     return (
-        <Card className="overflow-hidden hover:shadow-md gap-2">
-            <CardHeader className="flex items-center justify-between">
+        <Card className="overflow-hidden hover:shadow-md">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div className="flex items-center gap-2">
                     {IconComponent && (
-                        <div className={`p-2 rounded-lg ${colors.bg}`}>
-                            <IconComponent
-                                className={`w-4 h-4 ${colors.text}`}
-                            />
+                        <div className={`rounded-lg p-2 ${colors.bg}`}>
+                            <IconComponent className={`h-4 w-4 ${colors.text}`} />
                         </div>
                     )}
                     <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -84,22 +77,24 @@ export default function StatCard({
                     </CardTitle>
                 </div>
                 {change && (
+                    // 2. Gunakan objek pemetaan untuk memilih kelas yang benar
                     <Badge
                         variant="outline"
-                        className={`flex items-center gap-1 border-${color}-200 bg-${color}-50 text-${color}-700`}
+                        className={`flex items-center gap-1 ${colorStyles[changeType].badge}`}
                     >
                         <TrendIcon className="h-3.5 w-3.5" />
                         {change}
                     </Badge>
                 )}
             </CardHeader>
-            <CardContent className="">
+            <CardContent>
                 <div className="text-3xl font-bold">{metric}</div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground pb-3 pt-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
                     {comparisonText && (
                         <div className="flex items-center gap-1">
+                            {/* 3. Terapkan juga untuk ikon panah */}
                             <ArrowIcon
-                                className={`h-3.5 w-3.5 text-${color}-600`}
+                                className={`h-3.5 w-3.5 ${colorStyles[changeType].arrow}`}
                             />
                             {comparisonText}
                         </div>
@@ -108,7 +103,7 @@ export default function StatCard({
                 </div>
 
                 {description && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="pt-2 text-xs text-muted-foreground">
                         {description}
                     </p>
                 )}

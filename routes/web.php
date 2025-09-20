@@ -51,13 +51,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [\App\Http\Controllers\ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // --- HANYA BISA DIAKSES MANAGER ---
-    Route::middleware(['role:manager'])->group(function () {});
+    Route::middleware(['role:manager'])->group(function () {
+        Route::get('/history', function () {
+            return Inertia::render('History');
+        })->name('history');
+    });
 
-    // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
-    Route::middleware(['role:manager,front-office'])->group(function () {
-        Route::get('/dashboard', function () {
-            return Inertia::render('Home');
-        })->name('dashboard');
+    // --- HANYA BISA DIAKSES MANAGER ---
+    Route::middleware(['role:front-office'])->group(function () {
         Route::get('/customers', function () {
             return Inertia::render('Customers');
         })->name('customers');
@@ -67,6 +68,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/orders', function () {
             return Inertia::render('Orders');
         })->name('orders');
+    });
+
+    // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
+    Route::middleware(['role:manager,front-office'])->group(function () {
+        Route::get('/dashboard', function () {
+            return Inertia::render('Home');
+        })->name('dashboard');
     });
 });
 

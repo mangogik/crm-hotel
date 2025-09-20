@@ -9,7 +9,7 @@ export default function Welcome({ auth }) {
 
     return (
         <>
-            <Head title="Welcome to Tohjaya Hotel CRM" />
+            <Head title="Welcome to Hotel CRM System" />
 
             {/* 1. Buat container utama yang relative untuk menampung layer */}
             <div className="relative min-h-screen overflow-hidden text-white">
