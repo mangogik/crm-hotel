@@ -3,8 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Http\Controllers\Api\OrderController;
-use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\CustomerController;
 
 /*
@@ -29,12 +29,12 @@ Route::get('/', function () {
 */
 Route::middleware(['web'])->group(function () {
     // Rute untuk mendapatkan detail satu layanan
-    Route::get('/services/{service}', [ServiceController::class, 'show']);
+    // Route::get('/services/{service}', [ServiceController::class, 'show']);
 
     // Rute untuk membuat order dari bot Telegram (n8n)
 
     Route::prefix('api')->middleware('n8n')->group(function () {
-        Route::post('/orders/create-from-bot', [\App\Http\Controllers\Api\OrderController::class, 'createFromBot']);
+        Route::post('/orders/create-from-bot', [OrderController::class, 'createFromBot']);
     });
 });
 
@@ -58,15 +58,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         })->name('history');
     });
 
-    // --- HANYA BISA DIAKSES MANAGER ---
+    // --- HANYA BISA DIAKSES FRONT OFFICE ---
     Route::middleware(['role:front-office'])->group(function () {
         Route::resource('customers', CustomerController::class);
-        Route::get('/services', function () {
-            return Inertia::render('Services');
-        })->name('services');
-        Route::get('/orders', function () {
-            return Inertia::render('Orders');
-        })->name('orders');
+        Route::resource('services', ServiceController::class);
+        Route::resource('orders', OrderController::class);
     });
 
     // --- BISA DIAKSES MANAGER & FRONT OFFICE ---

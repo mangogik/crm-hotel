@@ -87,7 +87,7 @@ export default function Welcome({ auth }) {
                                         </Link>
                                         <Link
                                             href={route('register')}
-                                            className={buttonVariants({ variant: 'outline', size: 'lg', className: 'border-white/50 text-white hover:bg-white/10 hover:border-white transition-all duration-300 transform hover:-translate-y-1' })}
+                                            className={buttonVariants({ variant: 'outline', size: 'lg', className: 'border-white/50 text-white hover:text-white bg-transparent hover:bg-white/10 hover:border-white transition-all duration-300 transform hover:-translate-y-1' })}
                                         >
                                             Pelajari Lebih Lanjut
                                         </Link>

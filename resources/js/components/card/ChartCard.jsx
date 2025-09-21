@@ -68,7 +68,6 @@ export default function ChartCard() {
                             cursor={false}
                             content={<ChartTooltipContent indicator="dashed" />}
                         />
-                        {/* 5. dataKey dan fill disesuaikan dengan chartConfig baru */}
 
                         <Bar
                             dataKey="checkIns"

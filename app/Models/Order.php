@@ -27,7 +27,7 @@ class Order extends Model
     public function getTotalPriceAttribute(): float
     {
         return $this->services->sum(function ($service) {
-            return $service->price * $service->pivot->quantity;
+            return $service->pivot->price_per_unit * $service->pivot->quantity;
         });
     }
 }

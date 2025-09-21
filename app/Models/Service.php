@@ -2,26 +2,34 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Service extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'name',
         'description',
         'price',
-        'type',
+        'type',  
+        'options',  
+        'unit_name', 
         'fulfillment_type',
-        'unit_name',
-        'options'
     ];
 
+    // Casting for JSON columns
     protected $casts = [
         'options' => 'array',
+        'price' => 'float',
     ];
 
-    public function orders()
+    public function orders(): BelongsToMany
     {
-        return $this->belongsToMany(Order::class)->withPivot('quantity', 'price_per_unit', 'details')->withTimestamps();
+        return $this->belongsToMany(Order::class)
+            ->withPivot('quantity')
+            ->withTimestamps();
     }
 }
