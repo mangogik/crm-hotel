@@ -15,6 +15,7 @@ class OrderController extends Controller
         $search = $request->input('search');
         $filterStatus = $request->input('status');
         $filterPaymentMethod = $request->input('payment_method');
+        $filterCountry = $request->input('country'); // Add country filter
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc'])
             ? $request->input('sort_direction', 'desc')
@@ -24,6 +25,11 @@ class OrderController extends Controller
             ->with(['customer', 'services'])
             ->when($filterStatus, fn($q) => $q->where('status', $filterStatus))
             ->when($filterPaymentMethod, fn($q) => $q->where('payment_method', $filterPaymentMethod))
+            ->when($filterCountry, function ($q) use ($filterCountry) { // Add country filter
+                $q->whereHas('customer', function ($sub) use ($filterCountry) {
+                    $sub->where('passport_country', $filterCountry);
+                });
+            })
             ->when($search, function ($q) use ($search) {
                 $q->whereHas('customer', function ($sub) use ($search) {
                     $sub->where('name', 'like', "%$search%")
@@ -47,6 +53,7 @@ class OrderController extends Controller
                 'search' => $search,
                 'status' => $filterStatus,
                 'payment_method' => $filterPaymentMethod,
+                'country' => $filterCountry,
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
                 'per_page' => 10,

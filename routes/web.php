@@ -6,6 +6,7 @@ use Inertia\Inertia;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -67,9 +68,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
     Route::middleware(['role:manager,front-office'])->group(function () {
-        Route::get('/dashboard', function () {
-            return Inertia::render('Home');
-        })->name('dashboard');
+        // Route::get('/dashboard', function () {
+        //     return Inertia::render('Home');
+        // })->name('dashboard');
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        // Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     });
 });
 

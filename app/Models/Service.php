@@ -14,9 +14,9 @@ class Service extends Model
         'name',
         'description',
         'price',
-        'type',  
-        'options',  
-        'unit_name', 
+        'type',
+        'options',
+        'unit_name',
         'fulfillment_type',
     ];
 
@@ -26,10 +26,14 @@ class Service extends Model
         'price' => 'float',
     ];
 
-    public function orders(): BelongsToMany
+    public function orders()
     {
         return $this->belongsToMany(Order::class)
-            ->withPivot('quantity')
-            ->withTimestamps();
+            ->withPivot('quantity', 'price_per_unit', 'details')
+            ->withTimestamps()
+            ->withCasts([
+                'price_per_unit' => 'float',
+                'quantity' => 'integer',
+            ]);
     }
 }

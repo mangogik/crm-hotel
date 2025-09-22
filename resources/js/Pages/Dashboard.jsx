@@ -1,26 +1,63 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import StatCard from "@/components/card/StatCard";
+import ChartCard from "@/components/card/ChartCard";
+import RankTableCard from "@/components/card/RankTableCard";
+import { usePage } from "@inertiajs/react";
+import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 
-export default function Dashboard() {
+export default function Home({}) {
+    const { props } = usePage();
+    const { stats, chartData, topServices } = props;
+
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(amount);
+    };
+
     return (
-        <AuthenticatedLayout
-            header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    Dashboard
-                </h2>
-            }
-        >
-            <Head title="Dashboard" />
+        <div className="">
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 ">
+                <StatCard
+                    title="Revenue (Today)"
+                    metric={formatCurrency(stats.revenue.today)}
+                    change={stats.revenue.change > 0 ? `+${stats.revenue.change}%` : `${stats.revenue.change}%`}
+                    changeType={stats.revenue.change >= 0 ? "positive" : "negative"}
+                    comparisonText={`vs. ${formatCurrency(stats.revenue.yesterday)} yesterday`}
+                    description="Strong performance driven by new product sales."
+                    icon="dollar"
+                    iconColor="blues"
+                />
+                <StatCard
+                    title="Customers (Today)"
+                    metric={stats.customers.today}
+                    change={stats.customers.change > 0 ? `+${stats.customers.change}%` : `${stats.customers.change}%`}
+                    changeType={stats.customers.change >= 0 ? "positive" : "negative"}
+                    comparisonText={`vs. ${stats.customers.yesterday} yesterday`}
+                    description="Increase driven by referral campaigns."
+                    icon="users"
+                    iconColor="green"
+                />
 
-            <div className="py-12">
-                <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
-                    <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                        <div className="p-6 text-gray-900">
-                            You're logged in!
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
+                <StatCard
+                    title="Orders (Today)"
+                    metric={stats.orders.today}
+                    change={stats.orders.change > 0 ? `+${stats.orders.change}%` : `${stats.orders.change}%`}
+                    changeType={stats.orders.change >= 0 ? "positive" : "negative"}
+                    comparisonText={`vs. ${stats.orders.yesterday} yesterday`}
+                    description="Slight dip in afternoon orders compared to usual trend."
+                    icon="cart"
+                    iconColor="purple"
+                />
+            </section>
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-[3fr_2fr]">
+                <RankTableCard data={topServices} />
+                <ChartCard data={chartData} />
+            </section>
+        </div>
     );
 }
+
+Home.layout = (page) => <AuthenticatedLayout children={page} />;
