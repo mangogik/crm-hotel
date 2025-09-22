@@ -34,23 +34,37 @@ class DashboardController extends Controller
                 return $order->total_price;
             });
 
-        $revenueChange = $revenueYesterday > 0
-            ? round((($revenueToday - $revenueYesterday) / $revenueYesterday) * 100, 1)
-            : 0;
+        // Calculate change percentage with special handling for zero yesterday
+        if ($revenueYesterday > 0) {
+            $revenueChange = round((($revenueToday - $revenueYesterday) / $revenueYesterday) * 100, 1);
+        } else {
+            // If yesterday was 0 but today has revenue, show 100% growth
+            $revenueChange = $revenueToday > 0 ? 100 : 0;
+        }
 
         // Customers today
         $customersToday = Customer::whereDate('created_at', $today)->count();
         $customersYesterday = Customer::whereDate('created_at', $yesterday)->count();
-        $customersChange = $customersYesterday > 0
-            ? round((($customersToday - $customersYesterday) / $customersYesterday) * 100, 1)
-            : 0;
 
-        // Orders today
+        // Calculate change percentage with special handling for zero yesterday
+        if ($customersYesterday > 0) {
+            $customersChange = round((($customersToday - $customersYesterday) / $customersYesterday) * 100, 1);
+        } else {
+            // If yesterday was 0 but today has customers, show 100% growth
+            $customersChange = $customersToday > 0 ? 100 : 0;
+        }
+
+        /// Orders today
         $ordersToday = Order::whereDate('created_at', $today)->count();
         $ordersYesterday = Order::whereDate('created_at', $yesterday)->count();
-        $ordersChange = $ordersYesterday > 0
-            ? round((($ordersToday - $ordersYesterday) / $ordersYesterday) * 100, 1)
-            : 0;
+
+        // Calculate change percentage with special handling for zero yesterday
+        if ($ordersYesterday > 0) {
+            $ordersChange = round((($ordersToday - $ordersYesterday) / $ordersYesterday) * 100, 1);
+        } else {
+            // If yesterday was 0 but today has orders, show 100% growth
+            $ordersChange = $ordersToday > 0 ? 100 : 0;
+        }
 
         // Customer activity for the last 7 days
         $last7Days = collect();
