@@ -6,6 +6,8 @@ import {
     History,
     Settings,
     ChevronUp,
+    ChartLine,
+    Sigma,
 } from "lucide-react";
 import useAuth from "@/hooks/useAuth";
 import {
@@ -56,10 +58,16 @@ const items = [
         allowedRoles: ["front-office"],
     },
     {
-        title: "History",
+        title: "Reports",
         url: "/history",
-        icon: History,
+        icon: ChartLine,
         allowedRoles: ["manager"],
+    },
+    {
+        title: "AI Analytics",
+        url: "/ai/analytics",
+        icon: Sigma,
+        allowedRoles: ["manager", "front-office"],
     },
 ];
 

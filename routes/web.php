@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AIController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -68,11 +69,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
     Route::middleware(['role:manager,front-office'])->group(function () {
-        // Route::get('/dashboard', function () {
-        //     return Inertia::render('Home');
-        // })->name('dashboard');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-        // Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/ai/analytics', [AIController::class, 'showPage'])->name('ai.analytics.show');
+        Route::post('/ai/generate-analysis', [AIController::class, 'generateAnalysis'])->name('ai.analytics.generate');
     });
 });
 

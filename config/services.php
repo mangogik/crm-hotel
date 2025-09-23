@@ -36,8 +36,12 @@ return [
     ],
 
     'n8n' => [
-    'token' => env('N8N_SECRET_TOKEN'),
-],
+        'token' => env('N8N_SECRET_TOKEN'),
+    ],
+
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+    ],
 
 
 ];

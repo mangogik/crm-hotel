@@ -21,6 +21,8 @@ const ServicesTable = ({
     sortBy,
     sortDirection,
     handleSort,
+    getTypeBadge,
+    getFulfillmentBadge,
 }) => {
     const SortableHeader = ({ field, children }) => (
         <TableHead className="cursor-pointer" onClick={() => handleSort(field)}>
@@ -28,7 +30,9 @@ const ServicesTable = ({
                 <span>{children}</span>
                 {sortBy === field && (
                     <ArrowUpDown
-                        className={`h-3 w-3 ${sortDirection === "asc" ? "rotate-180" : ""}`}
+                        className={`h-3 w-3 ${
+                            sortDirection === "asc" ? "rotate-180" : ""
+                        }`}
                     />
                 )}
             </div>
@@ -43,7 +47,9 @@ const ServicesTable = ({
                         <TableHead className="w-8"></TableHead>
                         <SortableHeader field="name">Name</SortableHeader>
                         <SortableHeader field="type">Type</SortableHeader>
-                        <SortableHeader field="fulfillment_type">Fulfillment</SortableHeader>
+                        <SortableHeader field="fulfillment_type">
+                            Fulfillment
+                        </SortableHeader>
                         <SortableHeader field="price">Price</SortableHeader>
                         <TableHead>Actions</TableHead>
                     </TableRow>
@@ -61,6 +67,8 @@ const ServicesTable = ({
                                 formatPrice={formatPrice}
                                 formatType={formatType}
                                 formatFulfillment={formatFulfillment}
+                                getTypeBadge={getTypeBadge}
+                                getFulfillmentBadge={getFulfillmentBadge}
                             />
                         ))
                     ) : (
@@ -77,4 +85,3 @@ const ServicesTable = ({
 };
 
 export default ServicesTable;
-
