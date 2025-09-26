@@ -33,7 +33,7 @@ class AIController extends Controller
                 throw new Exception('Konfigurasi API AI tidak ditemukan. Harap hubungi administrator.');
             }
 
-            $customers = Customer::latest()->limit(50)->get(['name', 'passport_country', 'checkin_at']);
+            $customers = Customer::latest()->limit(50)->get(['name', 'passport_country',]);
             if ($customers->count() < 10) {
                 return response()->json([
                     'summary' => 'Data customer tidak cukup untuk dianalisis (kurang dari 10).',

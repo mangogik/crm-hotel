@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AIController;
+use App\Http\Controllers\BookingController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -8,6 +9,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\RoomController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,6 +55,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [\App\Http\Controllers\ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // --- Grup untuk API internal yang memerlukan otentikasi session ---
+    Route::prefix('api')->group(function () {
+        Route::get('/bookings/check-availability', [BookingController::class, 'checkAvailability'])->name('bookings.checkAvailability');
+    });
+
     // --- HANYA BISA DIAKSES MANAGER ---
     Route::middleware(['role:manager'])->group(function () {
         Route::get('/history', function () {
@@ -65,6 +72,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('customers', CustomerController::class);
         Route::resource('services', ServiceController::class);
         Route::resource('orders', OrderController::class);
+        Route::resource('bookings', BookingController::class);
+        Route::resource('rooms', RoomController::class);
     });
 
     // --- BISA DIAKSES MANAGER & FRONT OFFICE ---

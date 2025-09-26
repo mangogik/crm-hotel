@@ -7,8 +7,6 @@ const CustomerForm = ({ data, setData, errors }) => {
         { id: "email", label: "Email", type: "email" },
         { id: "phone", label: "Phone", type: "text" },
         { id: "passport_country", label: "Country", type: "text" },
-        { id: "checkin_at", label: "Check-in", type: "date" },
-        { id: "checkout_at", label: "Check-out", type: "date" },
         { id: "notes", label: "Notes", type: "text" },
     ];
 

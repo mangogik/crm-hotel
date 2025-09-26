@@ -1,6 +1,6 @@
-import StatCard from "@/components/card/StatCard";
-import ChartCard from "@/components/card/ChartCard";
-import RankTableCard from "@/components/card/RankTableCard";
+import StatCard from "@/components/dashboard/StatCard";
+import ChartCard from "@/components/dashboard/ChartCard";
+import RankTableCard from "@/components/dashboard/RankTableCard";
 import { usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 

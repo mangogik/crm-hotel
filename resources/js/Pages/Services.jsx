@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePage, useForm, router } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Dialog,
     DialogContent,
@@ -11,18 +11,24 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-
-import ServiceHeader from "@/components/services/ServiceHeader";
-import ServiceFilters from "@/components/services/ServiceFilters";
-import ServicesTable from "@/components/services/ServicesTable";
-import ServiceForm from "@/components/services/ServiceForm";
-import DeleteServiceModal from "@/components/services/DeleteServiceModal";
-import Pagination from "@/components/services/Pagination";
+import AuthenticatedLayout from "../Layouts/AuthenticatedLayout";
 import { Badge } from "@/components/ui/badge";
 
+// Import komponen yang sudah ada
+import ServiceHeader from "../components/services/ServiceHeader";
+import ServiceFilters from "../components/services/ServiceFilters";
+import ServicesTable from "../components/services/ServicesTable";
+import ServiceForm from "../components/services/ServiceForm";
+import DeleteServiceModal from "../components/services/DeleteServiceModal";
+import Pagination from "../components/services/Pagination";
+
+// Import komponen insight baru
+import ServiceHighlightCard from "../components/services/insights/ServiceHighlightCard";
+import RankTableCard from "../components/services/insights/RankTableCard";
+
 export default function Services() {
-    const { services, filters, flash } = usePage().props;
+    // Menambahkan `insights` dari props
+    const { services, filters, flash, insights } = usePage().props;
 
     const [searchTerm, setSearchTerm] = useState(filters.search || "");
     const [selectedType, setSelectedType] = useState(filters.type || "all");
@@ -95,7 +101,10 @@ export default function Services() {
             fulfillment_type: service.fulfillment_type,
             price: service.price || "",
             unit_name: service.unit_name || "",
-            options: service.options || [{ name: "", price: "" }],
+            options:
+                service.options && service.options.length > 0
+                    ? service.options
+                    : [{ name: "", price: "" }],
         });
         clearErrors();
         setCurrentService(service);
@@ -135,21 +144,14 @@ export default function Services() {
         setSortDirection("desc");
     };
 
-    // Formatting and UI helpers
+    // --- FUNGSI HELPER YANG DIPERLUKAN TABEL (DIKEMBALIKAN) ---
     const formatPrice = (price) =>
         new Intl.NumberFormat("id-ID", {
             style: "currency",
             currency: "IDR",
+            minimumFractionDigits: 0,
         }).format(price || 0);
-    const formatType = (type) =>
-        type === "per_unit"
-            ? "Per Unit"
-            : type.charAt(0).toUpperCase() + type.slice(1);
-    const formatFulfillment = (type) =>
-        type
-            .split("_")
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(" ");
+
     const toggleRow = (id) =>
         setExpandedRows((prev) =>
             prev.includes(id)
@@ -163,15 +165,15 @@ export default function Services() {
 
         switch (type) {
             case "fixed":
-                variant = "success"; // hijau
+                variant = "success";
                 label = "Fixed";
                 break;
             case "per_unit":
-                variant = "info"; // biru
+                variant = "info";
                 label = `Per Unit ${unitName ? `(${unitName})` : ""}`;
                 break;
             case "selectable":
-                variant = "warning"; // kuning
+                variant = "warning";
                 label = "Selectable";
                 break;
             default:
@@ -194,12 +196,12 @@ export default function Services() {
 
         switch (fulfillment) {
             case "direct":
-                variant = "secondary"; // ungu (kita bikin di badgeVariants custom)
+                variant = "secondary";
                 label = "Direct";
                 break;
             case "staff_assisted":
-                variant = "primary"; // abu-abu / netral
-                label = "staff Assisted";
+                variant = "default";
+                label = "Staff Assisted";
                 break;
             default:
                 label = fulfillment;
@@ -270,8 +272,6 @@ export default function Services() {
                         getTypeBadge={getTypeBadge}
                         getFulfillmentBadge={getFulfillmentBadge}
                         formatPrice={formatPrice}
-                        formatType={formatType}
-                        formatFulfillment={formatFulfillment}
                         sortBy={sortBy}
                         sortDirection={sortDirection}
                         handleSort={handleSort}
@@ -279,11 +279,28 @@ export default function Services() {
                     <Pagination
                         paginationData={services}
                         buildPaginationUrl={buildPaginationUrl}
+                        router={router}
                     />
                 </CardContent>
             </Card>
 
-            {/* Create Modal */}
+            <Card>
+                 <CardHeader>
+                    <CardTitle className="text-2xl font-bold">Services Insights</CardTitle>
+                    <CardDescription>Insights from your services data</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                    <ServiceHighlightCard 
+                        popularService={insights.mostPopular}
+                        profitableService={insights.highestRevenue}
+                        formatPrice={formatPrice}
+                    />
+                    <RankTableCard data={insights.topServices} />
+                </CardContent>
+            </Card>
+
+
+            {/* Modals */}
             <Dialog
                 open={isCreateModalOpen}
                 onOpenChange={setIsCreateModalOpen}
@@ -304,7 +321,7 @@ export default function Services() {
                             removeOption={removeOption}
                             updateOption={updateOption}
                         />
-                        <DialogFooter>
+                        <DialogFooter className="mt-4">
                             <Button type="submit" disabled={processing}>
                                 Create Service
                             </Button>
@@ -313,7 +330,6 @@ export default function Services() {
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Modal */}
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
                 <DialogContent className="sm:max-w-[600px]">
                     <DialogHeader>
@@ -331,7 +347,7 @@ export default function Services() {
                             removeOption={removeOption}
                             updateOption={updateOption}
                         />
-                        <DialogFooter>
+                        <DialogFooter className="mt-4">
                             <Button type="submit" disabled={processing}>
                                 Update Service
                             </Button>
@@ -340,11 +356,10 @@ export default function Services() {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Modal */}
             <DeleteServiceModal
                 isOpen={isDeleteModalOpen}
                 onOpenChange={setIsDeleteModalOpen}
-                onConfirm={handleDelete}
+                onConfirm={handleDelete}    
                 service={currentService}
             />
         </div>
@@ -352,3 +367,4 @@ export default function Services() {
 }
 
 Services.layout = (page) => <AuthenticatedLayout children={page} />;
+

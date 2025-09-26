@@ -1,5 +1,6 @@
 <?php
 
+// app/Http/Controllers/CustomerController.php
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
@@ -13,12 +14,14 @@ class CustomerController extends Controller
         $perPage = (int) $request->input('per_page', 10);
         $search = $request->input('search');
         $passportCountry = $request->input('passport_country');
-        $checkinDate = $request->input('checkin_date');
-        $checkoutDate = $request->input('checkout_date');
+        $membershipType = $request->input('membership_type');
+        $lastVisitFrom = $request->input('last_visit_from');
+        $lastVisitTo = $request->input('last_visit_to');
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc']) ? $request->input('sort_direction', 'desc') : 'desc';
 
-        $query = Customer::query();
+        // DIUBAH: Ganti 'latestBooking.room' menjadi 'bookings.room' untuk mengambil semua booking
+        $query = Customer::with(['membership', 'bookings.room']);
 
         if ($search && is_string($search)) {
             $query->where(function ($q) use ($search) {
@@ -29,23 +32,27 @@ class CustomerController extends Controller
             });
         }
 
+        // ... (sisa query filter Anda tetap sama) ...
+
         if ($passportCountry && is_string($passportCountry)) {
             $query->where('passport_country', $passportCountry);
         }
 
-        if ($checkinDate) {
-            $query->whereDate('checkin_at', $checkinDate);
+        if ($membershipType && is_string($membershipType)) {
+            $query->whereHas('membership', function ($q) use ($membershipType) {
+                $q->where('membership_type', $membershipType);
+            });
         }
 
-        if ($checkoutDate) {
-            $query->whereDate('checkout_at', $checkoutDate);
-        }
-        if ($passportCountry && is_string($passportCountry)) {
-            $query->where('passport_country', $passportCountry);
+        if ($lastVisitFrom) {
+            $query->whereDate('last_visit_date', '>=', $lastVisitFrom);
         }
 
-        // Prevent sorting by unsafe columns: whitelist
-        $allowedSorts = ['name', 'email', 'phone', 'created_at', 'checkin_at', 'checkout_at', 'passport_country'];
+        if ($lastVisitTo) {
+            $query->whereDate('last_visit_date', '<=', $lastVisitTo);
+        }
+
+        $allowedSorts = ['name', 'email', 'phone', 'created_at', 'passport_country', 'total_visits', 'last_visit_date'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -54,7 +61,6 @@ class CustomerController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        // Transform each customer to primitive types (dates as ISO) to avoid hydration issues
         $paginator->getCollection()->transform(function ($c) {
             return [
                 'id' => $c->id,
@@ -62,10 +68,27 @@ class CustomerController extends Controller
                 'email' => $c->email,
                 'phone' => $c->phone,
                 'passport_country' => $c->passport_country,
-                'checkin_at' => $c->checkin_at ? $c->checkin_at->toDateString() : null,
-                'checkout_at' => $c->checkout_at ? $c->checkout_at->toDateString() : null,
+                'total_visits' => $c->total_visits,
+                'last_visit_date' => $c->last_visit_date ? $c->last_visit_date->toDateString() : null,
                 'notes' => $c->notes,
                 'created_at' => $c->created_at ? $c->created_at->toDateTimeString() : null,
+                'membership' => $c->membership ? [
+                    'membership_type' => $c->membership->membership_type,
+                    'discount_percentage' => $c->membership->discount_percentage,
+                ] : null,
+
+                // DIUBAH: Ganti 'latest_booking' menjadi 'bookings' (jamak)
+                'bookings' => $c->bookings
+                    ->sortByDesc('checkin_at') // Urutkan dari yang terbaru
+                    ->map(function ($booking) {
+                        return [
+                            'id' => $booking->id,
+                            'checkin_at' => $booking->checkin_at ? $booking->checkin_at->toDateString() : null,
+                            'checkout_at' => $booking->checkout_at ? $booking->checkout_at->toDateString() : null,
+                            'status' => $booking->status,
+                            'room_number' => $booking->room ? $booking->room->room_number : null,
+                        ];
+                    })->values()->all(), // Gunakan values() untuk reset keys array
             ];
         });
 
@@ -74,8 +97,9 @@ class CustomerController extends Controller
             'filters' => [
                 'search' => $search ?: '',
                 'passport_country' => $passportCountry ?: '',
-                'checkin_date' => $checkinDate ?: '',
-                'checkout_date' => $checkoutDate ?: '',
+                'membership_type' => $membershipType ?: '',
+                'last_visit_from' => $lastVisitFrom ?: '',
+                'last_visit_to' => $lastVisitTo ?: '',
                 'per_page' => $perPage,
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
@@ -85,6 +109,9 @@ class CustomerController extends Controller
 
     public function show(Customer $customer)
     {
+        // Perbaikan eager loading
+        $customer->load(['membership', 'bookings.room', 'bookings.orders']);
+
         return Inertia::render('Customers/Show', [
             'customer' => [
                 'id' => $customer->id,
@@ -92,14 +119,37 @@ class CustomerController extends Controller
                 'email' => $customer->email,
                 'phone' => $customer->phone,
                 'passport_country' => $customer->passport_country,
-                'checkin_at' => $customer->checkin_at ? $customer->checkin_at->toDateString() : null,
-                'checkout_at' => $customer->checkout_at ? $customer->checkout_at->toDateString() : null,
+                'total_visits' => $customer->total_visits,
+                'last_visit_date' => $customer->last_visit_date ? $customer->last_visit_date->toDateString() : null,
                 'notes' => $customer->notes,
                 'created_at' => $customer->created_at ? $customer->created_at->toDateTimeString() : null,
-                'orders' => $customer->orders()->select('id', 'created_at', 'total')->get(),
+                'membership' => $customer->membership ? [
+                    'membership_type' => $customer->membership->membership_type,
+                    'join_date' => $customer->membership->join_date->toDateString(),
+                    'total_bookings' => $customer->membership->total_bookings,
+                    'discount_percentage' => $customer->membership->discount_percentage,
+                ] : null,
+                'bookings' => $customer->bookings->map(function ($booking) {
+                    return [
+                        'id' => $booking->id,
+                        'checkin_at' => $booking->checkin_at ? $booking->checkin_at->toDateString() : null,
+                        'checkout_at' => $booking->checkout_at ? $booking->checkout_at->toDateString() : null,
+                        'status' => $booking->status,
+                        'room_number' => $booking->room ? $booking->room->room_number : null,
+                        'orders' => $booking->orders->map(function ($order) {
+                            return [
+                                'id' => $order->id,
+                                'status' => $order->status,
+                                'payment_method' => $order->payment_method,
+                                'total_price' => $order->total_price,
+                            ];
+                        }),
+                    ];
+                }),
             ],
         ]);
     }
+
 
     public function store(Request $request)
     {
@@ -108,12 +158,20 @@ class CustomerController extends Controller
             'email'            => 'nullable|email|max:255',
             'phone'            => 'nullable|string|max:20',
             'passport_country' => 'nullable|string|max:100',
-            'checkin_at'       => 'nullable|date',
-            'checkout_at'      => 'nullable|date|after_or_equal:checkin_at',
             'notes'            => 'nullable|string',
         ]);
 
-        Customer::create($data);
+        $data['total_visits'] = 0;
+
+        $customer = Customer::create($data);
+
+        // Create membership record untuk customer baru
+        $customer->membership()->create([
+            'membership_type' => 'regular',
+            'join_date' => now()->toDateString(),
+            'total_bookings' => 0,
+            'discount_percentage' => 0.00,
+        ]);
 
         return redirect()->back()->with('success', 'Customer created successfully.');
     }
@@ -125,8 +183,6 @@ class CustomerController extends Controller
             'email'            => 'nullable|email|max:255',
             'phone'            => 'nullable|string|max:20',
             'passport_country' => 'nullable|string|max:100',
-            'checkin_at'       => 'nullable|date',
-            'checkout_at'      => 'nullable|date|after_or_equal:checkin_at',
             'notes'            => 'nullable|string',
         ]);
 

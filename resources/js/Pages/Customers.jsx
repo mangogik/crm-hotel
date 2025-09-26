@@ -25,8 +25,9 @@ export default function Customers() {
     
     const [searchTerm, setSearchTerm] = useState(filters.search || "");
     const [selectedCountry, setSelectedCountry] = useState(filters.passport_country || "all");
-    const [checkinDateFilter, setCheckinDateFilter] = useState(filters.checkin_date || "");
-    const [checkoutDateFilter, setCheckoutDateFilter] = useState(filters.checkout_date || "");
+    const [selectedMembership, setSelectedMembership] = useState(filters.membership_type || "all");
+    const [lastVisitFrom, setLastVisitFrom] = useState(filters.last_visit_from || "");
+    const [lastVisitTo, setLastVisitTo] = useState(filters.last_visit_to || "");
     const [sortBy, setSortBy] = useState(filters.sort_by || "created_at");
     const [sortDirection, setSortDirection] = useState(filters.sort_direction || "desc");
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -37,8 +38,7 @@ export default function Customers() {
     const [expandedRows, setExpandedRows] = useState([]);
 
     const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm({
-        name: "", email: "", phone: "", passport_country: "",
-        checkin_at: "", checkout_at: "", notes: "",
+        name: "", email: "", phone: "", passport_country: "", notes: "",
     });
 
     useEffect(() => {
@@ -54,14 +54,15 @@ export default function Customers() {
     useEffect(() => {
         const timer = setTimeout(() => applyFilters(1), 500); // Reset to page 1 on filter change
         return () => clearTimeout(timer);
-    }, [searchTerm, selectedCountry, checkinDateFilter, checkoutDateFilter, sortBy, sortDirection]);
+    }, [searchTerm, selectedCountry, selectedMembership, lastVisitFrom, lastVisitTo, sortBy, sortDirection]);
 
     const applyFilters = (page = filters.page || 1) => {
         router.get(route("customers.index"), {
             search: searchTerm,
             passport_country: selectedCountry === "all" ? "" : selectedCountry,
-            checkin_date: checkinDateFilter,
-            checkout_date: checkoutDateFilter,
+            membership_type: selectedMembership === "all" ? "" : selectedMembership,
+            last_visit_from: lastVisitFrom,
+            last_visit_to: lastVisitTo,
             sort_by: sortBy,
             sort_direction: sortDirection,
             page,
@@ -80,7 +81,13 @@ export default function Customers() {
     };
 
     const openEditModal = (customer) => {
-        setData({ ...customer });
+        setData({ 
+            name: customer.name,
+            email: customer.email || "",
+            phone: customer.phone || "",
+            passport_country: customer.passport_country || "",
+            notes: customer.notes || ""
+        });
         clearErrors();
         setCurrentCustomer(customer);
         setIsEditModalOpen(true);
@@ -114,8 +121,9 @@ export default function Customers() {
     const clearFilters = () => {
         setSearchTerm("");
         setSelectedCountry("all");
-        setCheckinDateFilter("");
-        setCheckoutDateFilter("");
+        setSelectedMembership("all");
+        setLastVisitFrom("");
+        setLastVisitTo("");
         setSortBy("created_at");
         setSortDirection("desc");
     };
@@ -129,8 +137,9 @@ export default function Customers() {
         const params = new URLSearchParams(urlObj.search);
         params.set("search", searchTerm);
         params.set("passport_country", selectedCountry === "all" ? "" : selectedCountry);
-        params.set("checkin_date", checkinDateFilter);
-        params.set("checkout_date", checkoutDateFilter);
+        params.set("membership_type", selectedMembership === "all" ? "" : selectedMembership);
+        params.set("last_visit_from", lastVisitFrom);
+        params.set("last_visit_to", lastVisitTo);
         params.set("sort_by", sortBy);
         params.set("sort_direction", sortDirection);
         return `${urlObj.pathname}?${params.toString()}`;
@@ -144,8 +153,9 @@ export default function Customers() {
                     <CustomerFilters
                         searchTerm={searchTerm} setSearchTerm={setSearchTerm}
                         selectedCountry={selectedCountry} setSelectedCountry={setSelectedCountry}
-                        checkinDateFilter={checkinDateFilter} setCheckinDateFilter={setCheckinDateFilter}
-                        checkoutDateFilter={checkoutDateFilter} setCheckoutDateFilter={setCheckoutDateFilter}
+                        selectedMembership={selectedMembership} setSelectedMembership={setSelectedMembership}
+                        lastVisitFrom={lastVisitFrom} setLastVisitFrom={setLastVisitFrom}
+                        lastVisitTo={lastVisitTo} setLastVisitTo={setLastVisitTo}
                         clearFilters={clearFilters} countries={countries}
                     />
                     <CustomersTable

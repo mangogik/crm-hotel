@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Customer;
 use App\Models\Service;
+use App\Models\Booking;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -42,7 +43,7 @@ class DashboardController extends Controller
             $revenueChange = $revenueToday > 0 ? 100 : 0;
         }
 
-        // Customers today
+        // Customers today (new customers created today)
         $customersToday = Customer::whereDate('created_at', $today)->count();
         $customersYesterday = Customer::whereDate('created_at', $yesterday)->count();
 
@@ -54,7 +55,7 @@ class DashboardController extends Controller
             $customersChange = $customersToday > 0 ? 100 : 0;
         }
 
-        /// Orders today
+        // Orders today
         $ordersToday = Order::whereDate('created_at', $today)->count();
         $ordersYesterday = Order::whereDate('created_at', $yesterday)->count();
 
@@ -66,13 +67,29 @@ class DashboardController extends Controller
             $ordersChange = $ordersToday > 0 ? 100 : 0;
         }
 
+        // Bookings today (check-ins today)
+        $bookingsToday = Booking::whereDate('checkin_at', $today)->count();
+        $bookingsYesterday = Booking::whereDate('checkin_at', $yesterday)->count();
+
+        // Calculate change percentage for bookings
+        if ($bookingsYesterday > 0) {
+            $bookingsChange = round((($bookingsToday - $bookingsYesterday) / $bookingsYesterday) * 100, 1);
+        } else {
+            // If yesterday was 0 but today has bookings, show 100% growth
+            $bookingsChange = $bookingsToday > 0 ? 100 : 0;
+        }
+
         // Customer activity for the last 7 days
         $last7Days = collect();
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
-            $checkIns = Customer::whereDate('checkin_at', $date)->count();
+            
+            // Count check-ins (bookings with check-in on this date)
+            $checkIns = Booking::whereDate('checkin_at', $date)->count();
 
+            // Count services ordered (orders created on this date)
             $servicesOrdered = Order::whereDate('created_at', $date)
+                ->where('status', '!=', 'cancelled')
                 ->with('services')
                 ->get()
                 ->sum(function ($order) {
@@ -138,6 +155,12 @@ class DashboardController extends Controller
             return $service;
         });
 
+        // Get active bookings count
+        $activeBookings = Booking::whereIn('status', ['reserved', 'checked_in'])->count();
+        
+        // Get available rooms count
+        $availableRooms = \App\Models\Room::where('status', 'available')->count();
+
         return Inertia::render('Dashboard', [
             'stats' => [
                 'revenue' => [
@@ -155,6 +178,13 @@ class DashboardController extends Controller
                     'yesterday' => $ordersYesterday,
                     'change' => $ordersChange,
                 ],
+                'bookings' => [
+                    'today' => $bookingsToday,
+                    'yesterday' => $bookingsYesterday,
+                    'change' => $bookingsChange,
+                ],
+                'activeBookings' => $activeBookings,
+                'availableRooms' => $availableRooms,
             ],
             'chartData' => $last7Days,
             'topServices' => $topServices,

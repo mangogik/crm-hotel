@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Service;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class ServiceController extends Controller
 {
@@ -14,8 +16,8 @@ class ServiceController extends Controller
         $type = $request->input('type');
         $fulfillmentType = $request->input('fulfillment_type');
         $sortBy = $request->input('sort_by', 'created_at');
-        $sortDirection = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc']) 
-            ? $request->input('sort_direction', 'desc') 
+        $sortDirection = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc'])
+            ? $request->input('sort_direction', 'desc')
             : 'desc';
 
         $query = Service::query();
@@ -35,7 +37,6 @@ class ServiceController extends Controller
             $query->where('fulfillment_type', $fulfillmentType);
         }
 
-        // Allowed sorts
         $allowedSorts = ['name', 'type', 'fulfillment_type', 'price', 'created_at'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
@@ -45,21 +46,57 @@ class ServiceController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        // If the request expects JSON (API request)
+        // --- DATA UNTUK KARTU WAWASAN ---
+
+        // 1. Layanan Paling Populer (berdasarkan jumlah pesanan)
+        $mostPopularService = Service::withCount('orders')
+            ->orderBy('orders_count', 'desc')
+            ->first();
+
+        // 2. Layanan Paling Menguntungkan
+        $servicesWithRevenue = Service::with('orders')->get()->map(function ($service) {
+            $revenue = $service->orders->sum(fn($order) => ($order->pivot->price_per_unit ?? 0) * ($order->pivot->quantity ?? 0));
+            return ['name' => $service->name, 'revenue' => $revenue];
+        });
+        $highestRevenueService = $servicesWithRevenue->sortByDesc('revenue')->first();
+
+
+        // 3. Data untuk Tabel Peringkat (Top 5 Services by Revenue)
+        $topServices = Service::with(['orders' => function ($query) {
+            $query->where('orders.created_at', '>=', Carbon::now()->subDays(7))
+                  ->where('orders.status', '!=', 'cancelled');
+        }])
+        ->get()
+        ->map(function ($service) {
+            $totalRevenue = $service->orders->sum(fn($order) => (float) $order->pivot->price_per_unit * (int) $order->pivot->quantity);
+            $orderCount = $service->orders->count();
+            return [
+                'id' => $service->id,
+                'serviceName' => $service->name,
+                'orderCount' => $orderCount,
+                'totalRevenue' => $totalRevenue,
+            ];
+        })
+        ->where('orderCount', '>', 0) // Hanya tampilkan yang pernah dipesan
+        ->sortByDesc('totalRevenue')
+        ->take(5)
+        ->values()
+        ->map(function ($service, $index) {
+            $service['rank'] = $index + 1;
+            return $service;
+        });
+
         if ($request->wantsJson()) {
             return response()->json($services);
         }
 
-        // Otherwise, return Inertia view (web request)
         return Inertia::render('Services', [
             'services' => $services,
-            'filters' => [
-                'search' => $search ?: '',
-                'type' => $type ?: '',
-                'fulfillment_type' => $fulfillmentType ?: '',
-                'sort_by' => $sortBy,
-                'sort_direction' => $sortDirection,
-                'per_page' => 10,
+            'filters' => $request->only(['search', 'type', 'fulfillment_type', 'sort_by', 'sort_direction']),
+            'insights' => [
+                'mostPopular' => $mostPopularService,
+                'highestRevenue' => $highestRevenueService,
+                'topServices' => $topServices,
             ],
             'flash' => [
                 'success' => session('success'),
@@ -67,6 +104,8 @@ class ServiceController extends Controller
             ],
         ]);
     }
+    
+    // ... (Metode store, update, destroy, dan validateData tetap sama)
 
     public function store(Request $request)
     {
@@ -155,3 +194,4 @@ class ServiceController extends Controller
         return $request->validate($rules);
     }
 }
+

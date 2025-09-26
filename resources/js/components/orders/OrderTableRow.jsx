@@ -99,7 +99,7 @@ const OrderTableRow = ({
             {isExpanded && (
                 <TableRow key={`${order.id}-details`}>
                     <TableCell colSpan={8} className="p-4 bg-muted/20">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2">
                             <div>
                                 <h5 className="text-sm font-medium mb-2">
                                     Customer Information

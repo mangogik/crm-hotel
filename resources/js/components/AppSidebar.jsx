@@ -8,6 +8,9 @@ import {
     ChevronUp,
     ChartLine,
     Sigma,
+    Book,
+    DoorClosed,
+    DoorOpen,
 } from "lucide-react";
 import useAuth from "@/hooks/useAuth";
 import {
@@ -43,6 +46,18 @@ const items = [
         title: "Customers",
         url: "/customers",
         icon: User,
+        allowedRoles: ["front-office"],
+    },
+    {
+        title: "Bookings",
+        url: "/bookings",
+        icon: Book,
+        allowedRoles: ["front-office"],
+    },
+    {
+        title: "Rooms",
+        url: "/rooms",
+        icon: DoorOpen,
         allowedRoles: ["front-office"],
     },
     {

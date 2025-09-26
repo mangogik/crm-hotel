@@ -45,12 +45,15 @@ const CustomersTable = ({
                         <SortableHeader field="email">Email</SortableHeader>
                         <SortableHeader field="phone">Phone</SortableHeader>
                         <SortableHeader field="passport_country">Country</SortableHeader>
-                        <SortableHeader field="checkin_at">Check-in</SortableHeader>
-                        <SortableHeader field="checkout_at">Check-out</SortableHeader>
+                        <SortableHeader field="total_visits">Visits</SortableHeader>
+                        {/* <SortableHeader field="last_visit_date">Last Visit</SortableHeader> */}
+                        <TableHead>Membership</TableHead>
+                        {/* <TableHead>Latest Booking</TableHead> */}
                         <TableHead>Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
+                    {console.table(customers)}
                     {customers.length > 0 ? (
                         customers.map((customer) => (
                             <CustomerTableRow
@@ -65,7 +68,7 @@ const CustomersTable = ({
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={8} className="text-center py-8">
+                            <TableCell colSpan={9} className="text-center py-8">
                                 No customers found
                             </TableCell>
                         </TableRow>
