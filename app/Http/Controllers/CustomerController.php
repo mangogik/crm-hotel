@@ -1,6 +1,5 @@
 <?php
 
-// app/Http/Controllers/CustomerController.php
 namespace App\Http\Controllers;
 
 use App\Models\Customer;

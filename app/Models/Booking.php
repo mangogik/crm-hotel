@@ -40,6 +40,11 @@ class Booking extends Model
         return $this->hasMany(Review::class);
     }
 
+    public function interactions()
+    {
+        return $this->hasMany(BookingInteraction::class)->orderBy('created_at', 'desc');
+    }
+
     public function reminders()
     {
         return $this->hasMany(Reminder::class, 'target_id')

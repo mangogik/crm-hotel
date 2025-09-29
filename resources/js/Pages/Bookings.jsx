@@ -294,7 +294,7 @@ export default function Bookings() {
             >
                 <DialogContent
                     className={`${
-                        bookingStep === 2 ? "sm:max-w-[1200px]" : ""
+                        bookingStep === 2 ? "sm:max-w-[1200px]" : "sm:max-w-[500px]"
                     } max-h-[90vh] overflow-y-auto`}
                 >
                     <DialogHeader>

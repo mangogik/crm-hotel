@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Booking;
 use App\Models\Order;
 use App\Models\Service;
 use App\Models\Customer;
@@ -182,14 +183,12 @@ class OrderController extends Controller
         return redirect()->back()->with('success', 'Order berhasil dihapus.');
     }
 
-    /**
-     * Integrasi bot Telegram/n8n (mirip sebelumnya).
-     */
     public function createFromBot(Request $request)
     {
         $validated = $request->validate([
             'phone' => 'required|string',
             'service_id' => 'required|exists:services,id',
+            'booking_id' => 'required|exists:bookings,id',
             'selected_option' => 'required_if:service.type,selectable,per_unit',
             'payment_method' => 'required|string|in:online,cash',
             'passport_country' => 'nullable|string|max:100',
@@ -206,6 +205,7 @@ class OrderController extends Controller
         }
 
         $service = Service::findOrFail($validated['service_id']);
+        $booking = Booking::findOrFail($validated['booking_id']);
         $totalPrice = 0;
         $details = [];
 
@@ -230,6 +230,7 @@ class OrderController extends Controller
 
         $order = Order::create([
             'customer_id' => $customer->id,
+            'booking_id' => $booking->id,
             'status' => 'pending',
             'payment_method' => $validated['payment_method'],
         ]);

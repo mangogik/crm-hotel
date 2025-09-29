@@ -9,6 +9,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const CustomerTableRow = ({
     customer,
@@ -25,19 +26,6 @@ const CustomerTableRow = ({
             case "gold":
                 return "warning";
             case "silver":
-                return "outline";
-            default:
-                return "destructive";
-        }
-    };
-
-    const getBookingStatusBadgeVariant = (status) => {
-        switch (status) {
-            case "checked_in":
-                return "default";
-            case "reserved":
-                return "secondary";
-            case "checked_out":
                 return "outline";
             default:
                 return "destructive";
@@ -147,50 +135,48 @@ const CustomerTableRow = ({
                                 </h5>
                                 {customer.bookings &&
                                 customer.bookings.length > 0 ? (
-                                    <div className="border rounded-md">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>
-                                                        Check-in Date
-                                                    </TableHead>
-                                                    <TableHead>Room</TableHead>
-                                                    <TableHead>
-                                                        Status
-                                                    </TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {customer.bookings.map(
-                                                    (booking) => (
-                                                        <TableRow
-                                                            key={booking.id}
-                                                        >
-                                                            <TableCell>
-                                                                {formatDate(
-                                                                    booking.checkin_at
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                {booking.room_number ||
-                                                                    "N/A"}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Badge
-                                                                    variant={getBookingStatusBadgeVariant(
-                                                                        booking.status
+                                    <div className="border rounded-md bg-background">
+                                        <ScrollArea className="h-64">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>
+                                                            Check-in Date
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Room
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Status
+                                                        </TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {customer.bookings.map(
+                                                        (booking) => (
+                                                            <TableRow
+                                                                key={booking.id}
+                                                            >
+                                                                <TableCell>
+                                                                    {formatDate(
+                                                                        booking.checkin_at
                                                                     )}
-                                                                >
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {booking.room_number ||
+                                                                        "N/A"}
+                                                                </TableCell>
+                                                                <TableCell>
                                                                     {capitalizeWords(
                                                                         booking.status
                                                                     )}
-                                                                </Badge>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )
-                                                )}
-                                            </TableBody>
-                                        </Table>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </ScrollArea>
                                     </div>
                                 ) : (
                                     <p className="text-sm text-muted-foreground">

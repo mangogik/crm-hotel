@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Head, router } from "@inertiajs/react";
+import { Head } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import {
     Card,
@@ -23,7 +23,7 @@ import axios from "axios";
 
 const ListItem = ({ icon, text }) => (
     <li className="flex items-start gap-3">
-        <div className="flex-shrink-0 text-primary">{icon}</div>
+        <div className="flex-shrink-0 text-primary pt-1">{icon}</div>
         <span>{text}</span>
     </li>
 );
@@ -76,25 +76,25 @@ export default function AIAnalytics() {
             <div className="p-4 sm:p-6 lg:p-8">
                 <Card>
                     <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <Sigma className="h-6 w-6" />
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <Sigma className="h-8 w-8 text-primary" />
                                 <div>
-                                    <CardTitle>AI Customer Analytics</CardTitle>
+                                    {/* Judul diubah */}
+                                    <CardTitle>AI Upselling & Conversion Analysis</CardTitle>
                                     <CardDescription>
-                                        Click the button to generate AI-powered
-                                        insights from your customer data.
+                                        {/* Deskripsi diubah */}
+                                        Generate AI-powered insights on guest behavior and service conversion rates.
                                     </CardDescription>
                                 </div>
                             </div>
                             <Button
                                 onClick={handleGenerateAnalysis}
                                 disabled={isLoading}
+                                className="w-full sm:w-auto"
                             >
                                 <Sparkles className="mr-2 h-4 w-4" />
-                                {isLoading
-                                    ? "Analyzing..."
-                                    : "Generate Analysis"}
+                                {isLoading ? "Analyzing..." : "Generate Analysis"}
                             </Button>
                         </div>
                     </CardHeader>
@@ -114,7 +114,7 @@ export default function AIAnalytics() {
                                 <div>
                                     <h3 className="mb-2 text-lg font-semibold flex items-center gap-2">
                                         <ListChecks className="h-5 w-5 text-primary" />
-                                        Summary
+                                        Executive Summary
                                     </h3>
                                     <p className="text-muted-foreground leading-relaxed">
                                         {analysis.summary}
@@ -123,43 +123,23 @@ export default function AIAnalytics() {
                                 <div className="border-t pt-6">
                                     <h3 className="mb-3 text-lg font-semibold flex items-center gap-2">
                                         <TrendingUp className="h-5 w-5 text-primary" />
-                                        Key Trends
+                                        Key Conversion Trends
                                     </h3>
-                                    <ul className="space-y-2 text-muted-foreground">
-                                        {analysis.trends?.map(
-                                            (trend, index) => (
-                                                <ListItem
-                                                    key={index}
-                                                    icon={
-                                                        <span className="font-bold">
-                                                            #
-                                                        </span>
-                                                    }
-                                                    text={trend}
-                                                />
-                                            )
-                                        )}
+                                    <ul className="space-y-3 text-muted-foreground">
+                                        {analysis.trends?.map((trend, index) => (
+                                            <ListItem key={index} icon={"#"} text={trend} />
+                                        ))}
                                     </ul>
                                 </div>
                                 <div className="border-t pt-6">
                                     <h3 className="mb-3 text-lg font-semibold flex items-center gap-2">
                                         <Lightbulb className="h-5 w-5 text-primary" />
-                                        Recommendations
+                                        Actionable Recommendations
                                     </h3>
-                                    <ul className="space-y-2 text-muted-foreground">
-                                        {analysis.recommendations?.map(
-                                            (rec, index) => (
-                                                <ListItem
-                                                    key={index}
-                                                    icon={
-                                                        <span className="font-bold">
-                                                            ✓
-                                                        </span>
-                                                    }
-                                                    text={rec}
-                                                />
-                                            )
-                                        )}
+                                    <ul className="space-y-3 text-muted-foreground">
+                                        {analysis.recommendations?.map((rec, index) => (
+                                            <ListItem key={index} icon={"✓"} text={rec} />
+                                        ))}
                                     </ul>
                                 </div>
                             </>
@@ -169,7 +149,7 @@ export default function AIAnalytics() {
                             <div className="flex flex-col items-center justify-center text-center h-full pt-10">
                                 <Sparkles className="h-12 w-12 text-muted-foreground/50" />
                                 <p className="mt-4 text-muted-foreground">
-                                    Your analysis will appear here.
+                                    Your upselling analysis will appear here.
                                 </p>
                             </div>
                         )}

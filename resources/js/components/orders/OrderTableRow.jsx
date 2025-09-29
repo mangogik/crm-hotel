@@ -1,5 +1,6 @@
-import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Table,
     TableBody,
@@ -146,45 +147,62 @@ const OrderTableRow = ({
                                 <h5 className="text-sm font-medium mb-2">
                                     Services
                                 </h5>
-                                <div className="border rounded-md">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Service</TableHead>
-                                                <TableHead>Quantity</TableHead>
-                                                <TableHead>
-                                                    Price/Unit
-                                                </TableHead>
-                                                <TableHead>Total</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {order.services.map((service) => (
-                                                <TableRow key={service.id}>
-                                                    <TableCell>
-                                                        {service.name}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {service.pivot.quantity}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {formatPrice(
-                                                            service.pivot
-                                                                .price_per_unit
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {formatPrice(
-                                                            service.pivot
-                                                                .price_per_unit *
-                                                                service.pivot
-                                                                    .quantity
-                                                        )}
-                                                    </TableCell>
+                                <div className="border rounded-lg bg-background">
+                                    <ScrollArea className="h-64">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>
+                                                        Service
+                                                    </TableHead>
+                                                    <TableHead>
+                                                        Quantity
+                                                    </TableHead>
+                                                    <TableHead>
+                                                        Price/Unit
+                                                    </TableHead>
+                                                    <TableHead>Total</TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {order.services.map(
+                                                    (service) => (
+                                                        <TableRow
+                                                            key={service.id}
+                                                        >
+                                                            <TableCell>
+                                                                {service.name}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {
+                                                                    service
+                                                                        .pivot
+                                                                        .quantity
+                                                                }
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {formatPrice(
+                                                                    service
+                                                                        .pivot
+                                                                        .price_per_unit
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {formatPrice(
+                                                                    service
+                                                                        .pivot
+                                                                        .price_per_unit *
+                                                                        service
+                                                                            .pivot
+                                                                            .quantity
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </ScrollArea>
                                 </div>
                             </div>
                         </div>

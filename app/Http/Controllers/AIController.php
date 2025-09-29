@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Customer;
+use App\Models\Booking; // Ganti Customer menjadi Booking
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log; // <-- 1. Impor Log facade
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Exception;
 use Illuminate\Http\JsonResponse;
@@ -22,103 +22,184 @@ class AIController extends Controller
     }
 
     /**
-     * Menghasilkan analisis dari data customer.
+     * Menghasilkan analisis dari data booking dan interaksi.
      */
     public function generateAnalysis(): JsonResponse
     {
         try {
             $apiKey = config('services.gemini.key');
             if (empty($apiKey)) {
-                Log::error('Gemini API key is not set in .env file or config cache is not cleared.');
-                throw new Exception('Konfigurasi API AI tidak ditemukan. Harap hubungi administrator.');
+                throw new Exception('Konfigurasi API AI tidak ditemukan.');
             }
 
-            $customers = Customer::latest()->limit(50)->get(['name', 'passport_country',]);
-            if ($customers->count() < 10) {
-                return response()->json([
-                    'summary' => 'Data customer tidak cukup untuk dianalisis (kurang dari 10).',
-                    'trends' => [],
-                    'recommendations' => []
-                ]);
-            }
+            // --- PERUBAHAN UTAMA: MENGAMBIL DATA YANG LEBIH KAYA ---
+            $bookings = Booking::with(['customer', 'interactions', 'orders.services'])
+                ->where('status', 'checked_out') // Analisis dari tamu yang sudah selesai menginap
+                ->latest()
+                ->limit(50) // Ambil 50 booking terakhir yang sudah selesai
+                ->get();
 
-            // Buat prompt dan panggil API
-            $prompt = $this->createCustomerPrompt($customers->toJson());
+            // if ($bookings->count() < 5) { // Jumlah minimal data untuk dianalisis
+            //     return response()->json([
+            //         'summary' => 'Data booking yang telah selesai tidak cukup untuk dianalisis (kurang dari 5).',
+            //         'trends' => [],
+            //         'recommendations' => []
+            //     ]);
+            // }
 
-            $response = Http::timeout(60)
-                ->retry(3, 100) // <-- TAMBAHKAN INI
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={$apiKey}", [
+            // Sederhanakan data untuk dikirim ke AI
+            $simplifiedData = $this->simplifyDataForAI($bookings);
+
+            // Buat prompt baru yang lebih cerdas
+            $prompt = $this->createUpsellingPrompt(json_encode($simplifiedData, JSON_PRETTY_PRINT));
+
+            $response = Http::timeout(120) // Tambah timeout karena prompt lebih kompleks
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
                     'contents' => [['parts' => [['text' => $prompt]]]]
                 ]);
 
             if ($response->failed()) {
-                Log::error('Gemini API request failed.', [
-                    'status' => $response->status(),
-                    'response' => $response->body()
-                ]);
-
-                $errorBody = $response->json('error.message', 'Terjadi kesalahan saat berkomunikasi dengan API AI.');
-                throw new Exception("Gagal menghubungi AI: " . $errorBody);
+                Log::error('Gemini API request failed.', ['status' => $response->status(), 'response' => $response->body()]);
+                throw new Exception("Gagal menghubungi AI: " . $response->json('error.message', 'Terjadi kesalahan.'));
             }
 
             $rawText = $response->json('candidates.0.content.parts.0.text');
             if (is_null($rawText)) {
-                Log::warning('Gemini API returned a successful response but with no content.', [
-                    'response' => $response->body()
-                ]);
-                throw new Exception('AI memberikan respons kosong. Coba lagi beberapa saat.');
+                throw new Exception('AI memberikan respons kosong.');
             }
 
             $cleanedJsonText = trim(str_replace(['```json', '```'], '', $rawText));
             $analysis = json_decode($cleanedJsonText, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
-                Log::error('Gemini API returned invalid JSON.', [
-                    'raw_text' => $rawText
-                ]);
+                Log::error('Gemini API returned invalid JSON.', ['raw_text' => $rawText]);
                 throw new Exception('AI memberikan format data yang tidak valid.');
             }
 
             return response()->json($analysis);
         } catch (ConnectionException $e) {
-            // Error jika server tidak bisa konek ke Google sama sekali (misal: firewall, DNS)
             Log::critical('Could not connect to Gemini API.', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Tidak dapat terhubung ke server AI. Periksa koneksi internet server atau pengaturan firewall.'], 500);
+            return response()->json(['error' => 'Tidak dapat terhubung ke server AI.'], 500);
         } catch (Exception $e) {
-            // Menangkap semua error lain yang mungkin terjadi
             return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
         }
     }
 
-    // ... method createCustomerPrompt() tetap sama ...
-    private function createCustomerPrompt(string $customerDataJson): string
+    /**
+     * Menyederhanakan data kompleks menjadi format yang mudah dibaca oleh AI.
+     */
+    private function simplifyDataForAI($bookings): array
     {
-        // (Tidak ada perubahan pada method ini)
+        return $bookings->map(function ($booking) {
+            return [
+                'customer_country' => $booking->customer->passport_country,
+                'room_type' => $booking->room->room_type,
+                'stay_duration_days' => $booking->checkin_at->diffInDays($booking->checkout_at),
+                'interactions_summary' => $booking->interactions->pluck('interaction_type')->countBy(),
+                'services_ordered' => $booking->orders->flatMap(fn($order) => $order->services)->pluck('name'),
+            ];
+        })->all();
+    }
+
+    /**
+     * Membuat prompt AI yang fokus pada analisis upselling dan konversi.
+     */
+    // app/Http-Controllers-AIController.php
+
+    private function createUpsellingPrompt(string $dataJson): string
+    {
+        // Kamus interaksi agar konsisten dengan istilah yang tampil di dashboard
+        $interactionTerms = json_encode([
+            'view_services' => 'Tamu membuka menu layanan untuk pertama kali.',
+            'req_svc'       => 'Tamu melihat detail dari sebuah layanan.',
+            'ord_svc'       => 'Tamu memilih salah satu opsi layanan.',
+            'confirm_ord'   => 'Tamu mengonfirmasi pesanan layanan.',
+            'payment'       => 'Tamu memilih metode pembayaran untuk layanan.',
+            'cancel'        => 'Tamu membatalkan proses pemesanan.',
+        ], JSON_PRETTY_PRINT);
+
+
         return <<<PROMPT
-Anda adalah seorang analis bisnis perhotelan yang ahli. Berdasarkan data customer dalam format JSON berikut, berikan analisis mendalam.
+Anda adalah Analis Bisnis & Strategi Upselling untuk hotel kami. 
+Sistem hotel terintegrasi antara Dashboard (CRUD customers, bookings, rooms, services, orders) dengan n8n, 
+yang berfungsi mengirim upselling otomatis melalui bot Telegram saat tamu check-in atau berinteraksi dengan layanan.
 
-Data Customer:
-{$customerDataJson}
+Data perilaku tamu berikut diberikan dalam format JSON:
+{$dataJson}
 
-Tugas Anda:
-1.  Buat sebuah ringkasan (summary) singkat mengenai profil umum customer dalam 2-3 kalimat.
-2.  Identifikasi 3 tren utama (trends) yang paling menonjol dari data tersebut (misalnya, negara asal paling umum, hari check-in favorit, dll.).
-3.  Berikan 3 rekomendasi (recommendations) actionable yang bisa dilakukan oleh manajemen hotel untuk meningkatkan bisnis berdasarkan tren tersebut.
+**Jangan menuliskan atau menerjemahkan secara literal istilah dalam kamus. Itu hanya sebagai konteks agar anda tau maksud dari istilah yang digunakan sehingga bisa menyusun penjelasan yang utuh dan mudah dipahami. KAMUS INTERAKSI :**
+{$interactionTerms}
 
-Format respons Anda HARUS dan HANYA dalam bentuk JSON yang valid dengan struktur berikut:
+**BATASAN SISTEM (wajib dipatuhi):**
+1. Hanya bisa mengirim pesan teks proaktif kepada tamu melalui bot Telegram.
+2. Bisa menampilkan tombol interaktif di bot untuk mengarahkan ke layanan tertentu.
+3. Bisa memberikan informasi atau pengingat kepada staf untuk upselling.
+4. Dashboard hanya mendukung CRUD untuk customers, bookings, rooms, services, dan orders.
+
+**PANDUAN REKOMENDASI:**
+- Fokuskan rekomendasi pada strategi layanan (services).
+- Anda boleh memberi insight seperti:
+  * Layanan tertentu lebih relevan ditawarkan pada kondisi atau tren tertentu (contoh: saat tamu baru check-in, saat tamu hanya menginap singkat, atau untuk tamu di tipe kamar tertentu).
+  * Layanan tertentu sebaiknya ditawarkan bersama layanan lain agar meningkatkan peluang konversi.
+  * Ada layanan yang jarang dipilih dan sebaiknya dipromosikan lebih kuat atau dievaluasi efektivitasnya.
+- Jangan pernah merekomendasikan perubahan teknis pada sistem.
+- Pastikan semua rekomendasi dapat dijalankan dengan kemampuan bot Telegram atau staf hotel.
+
+**TUGAS ANDA:**
+1. Summary: Ringkasan singkat pola perilaku tamu.
+2. Trends: Identifikasi 3 tren utama (peluang terlewat, produk unggulan, korelasi perilaku).
+3. Recommendations: Berikan 3 rekomendasi aksi yang konkret, fokus pada strategi promosi/penggunaan layanan, sesuai batasan di atas.
+
+**ATURAN FORMAT RESPON:**
+Penting: Jawab HANYA dengan JSON valid sesuai struktur, tanpa teks tambahan, tanpa komentar.
+- Output HARUS dalam format JSON valid.
+- Gunakan bahasa profesional, natural, dan mudah dipahami.
+- Gunakan istilah interaksi sesuai kamus di atas.
+- Jangan gunakan format Markdown.
+
+**STRUKTUR JSON YANG WAJIB:**
 {
-  "summary": "Teks ringkasan Anda di sini.",
+  "summary": "Ringkasan singkat perilaku tamu.",
   "trends": [
-    "Poin tren pertama.",
-    "Poin tren kedua.",
-    "Poin tren ketiga."
+    "Tren pertama",
+    "Tren kedua",
+    "Tren ketiga"
   ],
   "recommendations": [
-    "Poin rekomendasi pertama.",
-    "Poin rekomendasi kedua.",
-    "Poin rekomendasi ketiga."
+    "Rekomendasi pertama",
+    "Rekomendasi kedua",
+    "Rekomendasi ketiga"
   ]
 }
 PROMPT;
+    }
+
+
+    public function listModels()
+    {
+        try {
+            $apiKey = config('services.gemini.key');
+            if (empty($apiKey)) {
+                return "API Key Gemini tidak ditemukan.";
+            }
+
+            // Endpoint untuk mendaftar model
+            $url = "https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}";
+
+            $response = Http::get($url);
+
+            if ($response->failed()) {
+                return response()->json([
+                    'error' => 'Gagal mengambil daftar model dari Google.',
+                    'status' => $response->status(),
+                    'response' => $response->body(),
+                ], 500);
+            }
+
+            // Tampilkan daftar model yang tersedia
+            dd($response->body());
+        } catch (Exception $e) {
+            return "Terjadi kesalahan: " . $e->getMessage();
+        }
     }
 }

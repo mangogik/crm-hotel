@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AIController;
+use App\Http\Controllers\InteractionController;
 use App\Http\Controllers\BookingController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -26,20 +27,16 @@ Route::get('/', function () {
     ]);
 });
 
+Route::get('/check-ai-models', [AIController::class, 'listModels']);
+
 /*
 |--------------------------------------------------------------------------
 | Rute API / Bot (tanpa CSRF)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['web'])->group(function () {
-    // Rute untuk mendapatkan detail satu layanan
-    // Route::get('/services/{service}', [ServiceController::class, 'show']);
-
-    // Rute untuk membuat order dari bot Telegram (n8n)
-
-    Route::prefix('api')->middleware('n8n')->group(function () {
-        Route::post('/orders/create-from-bot', [OrderController::class, 'createFromBot']);
-    });
+Route::prefix('api')->middleware('n8n')->group(function () {
+    Route::post('/orders/create-from-bot', [OrderController::class, 'createFromBot']);
+    Route::post('/interactions', [InteractionController::class, 'store']);
 });
 
 

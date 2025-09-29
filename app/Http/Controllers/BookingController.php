@@ -5,20 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Room;
+use App\Models\Service;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log; // Kita tetap pakai Log untuk keamanan
 
 class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Booking::with(['customer', 'room']);
+        $query = Booking::with(['customer', 'room', 'interactions']);
 
-        // Filtering logic
+        // --- Blok filtering dan sorting Anda (tidak ada perubahan) ---
         $query->when($request->input('search'), function ($q, $search) {
             $q->whereHas('customer', function ($subQ) use ($search) {
                 $subQ->where('name', 'like', "%{$search}%");
@@ -26,20 +28,15 @@ class BookingController extends Controller
                 $subQ->where('room_number', 'like', "%{$search}%");
             });
         });
-
         $query->when($request->input('status'), function ($q, $status) {
             $q->where('status', $status);
         });
-
         $query->when($request->input('checkin_from'), function ($q, $date) {
             $q->whereDate('checkin_at', '>=', $date);
         });
-
         $query->when($request->input('checkin_to'), function ($q, $date) {
             $q->whereDate('checkin_at', '<=', $date);
         });
-
-        // Sorting logic
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = $request->input('sort_direction', 'desc');
         if (in_array($sortBy, ['customer_name', 'room_number'])) {
@@ -55,8 +52,62 @@ class BookingController extends Controller
         } else {
             $query->orderBy($sortBy, $sortDirection);
         }
+        // --- Akhir dari blok filtering dan sorting ---
 
         $bookings = $query->paginate(10)->withQueryString();
+
+        $serviceIds = $bookings->getCollection()
+            ->flatMap(fn($booking) => $booking->interactions)
+            ->pluck('metadata.service_id')
+            ->filter()
+            ->unique();
+
+        $servicesMap = Service::whereIn('id', $serviceIds)->pluck('name', 'id');
+
+        $bookings->getCollection()->transform(function ($booking) use ($servicesMap) {
+            return [
+                'id' => $booking->id,
+                'customer_id' => $booking->customer_id,
+                'room_id' => $booking->room_id,
+                'checkin_at' => $booking->checkin_at->toIso8601String(),
+                'checkout_at' => $booking->checkout_at->toIso8601String(),
+                'status' => $booking->status,
+                'notes' => $booking->notes,
+                'created_at' => $booking->created_at->toIso8601String(),
+                'customer' => $booking->customer,
+                'room' => $booking->room,
+                'interactions' => $booking->interactions->map(function ($interaction) use ($servicesMap) {
+
+                    // --- LOGIKA BARU YANG DIPERBAIKI ADA DI SINI ---
+
+                    $serviceId = $interaction->metadata['service_id'] ?? null;
+                    $optionName = $interaction->metadata['value'] ?? null;
+                    $serviceName = $servicesMap[$serviceId] ?? $interaction->details; // Fallback ke details jika nama tidak ditemukan
+
+                    $finalDetail = $serviceName; // Defaultnya adalah nama layanan
+
+                    // Cek jika ada nama opsi DAN nama itu BERBEDA dari nama layanan utama
+                    if ($optionName && $optionName !== $serviceName) {
+                        $finalDetail = "{$serviceName} ({$optionName})";
+                    }
+
+                    // Pengecualian khusus untuk tipe interaksi tertentu
+                    if ($interaction->interaction_type === 'view_services') {
+                        $finalDetail = '-';
+                    } else if ($interaction->interaction_type === 'payment' && isset($interaction->metadata['method'])) {
+                        $finalDetail = ucfirst($interaction->metadata['method']);
+                    }
+
+                    return [
+                        'id' => $interaction->id,
+                        'interaction_type' => $interaction->interaction_type,
+                        'details' => $finalDetail,
+                        'metadata' => $interaction->metadata,
+                        'created_at' => $interaction->created_at->toIso8601String(),
+                    ];
+                })->sortByDesc('created_at')->values(),
+            ];
+        });
 
         return Inertia::render('Bookings', [
             'bookings' => $bookings,
@@ -87,7 +138,7 @@ class BookingController extends Controller
         $existingBooking = Booking::where('room_id', $data['room_id'])
             ->where(function ($query) use ($data) {
                 $query->where('checkin_at', '<', $data['checkout_at'])
-                      ->where('checkout_at', '>', $data['checkin_at']);
+                    ->where('checkout_at', '>', $data['checkin_at']);
             })
             ->whereIn('status', ['reserved', 'checked_in'])
             ->exists();
@@ -97,11 +148,29 @@ class BookingController extends Controller
         }
 
         $booking = Booking::create($data);
+        $customer = Customer::find($booking->customer_id);
 
         $room = Room::find($data['room_id']);
         if ($room) {
             $room->status = 'occupied';
             $room->save();
+        }
+
+        // Kirim webhook ke n8n
+        try {
+            Http::post('https://otomations.kumtura.me/webhook-test/booking-created', [
+                'id' => $customer->id,
+                'booking_id' => $booking->id,
+                'name' => $customer->name,
+                'email' => $customer->email,
+                'phone' => $customer->phone,
+                'passport_country' => $customer->passport_country,
+                'checkin_at' => $booking->checkin_at,
+                'checkout_at' => $booking->checkout_at,
+                'notes' => $booking->notes,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Gagal kirim webhook booking-created', ['error' => $e->getMessage()]);
         }
 
         return Redirect::route('bookings.index')->with('success', 'Booking created successfully.');
@@ -117,7 +186,7 @@ class BookingController extends Controller
             'status' => ['required', Rule::in(['reserved', 'checked_in', 'checked_out', 'cancelled'])],
             'notes' => 'nullable|string',
         ]);
-        
+
         $originalStatus = $booking->getOriginal('status');
         $originalRoomId = $booking->room_id;
 
@@ -131,7 +200,7 @@ class BookingController extends Controller
         if ($originalRoomId != $data['room_id']) {
             Room::find($originalRoomId)->update(['status' => 'available']);
         }
-        
+
         $currentRoom = Room::find($data['room_id']);
         if ($data['status'] === 'checked_out' || $data['status'] === 'cancelled') {
             $currentRoom->status = 'available';
@@ -168,13 +237,13 @@ class BookingController extends Controller
 
             $bookedRoomIds = Booking::where(function ($query) use ($checkin, $checkout) {
                 $query->where('checkin_at', '<', $checkout)
-                      ->where('checkout_at', '>', $checkin);
+                    ->where('checkout_at', '>', $checkin);
             })
-            ->whereIn('status', ['reserved', 'checked_in'])
-            ->pluck('room_id');
+                ->whereIn('status', ['reserved', 'checked_in'])
+                ->pluck('room_id');
 
             $query = Room::whereNotIn('id', $bookedRoomIds);
-            
+
             if ($request->filled('room_type')) {
                 $query->where('room_type', $request->room_type);
             }
@@ -202,9 +271,8 @@ class BookingController extends Controller
                     'nights' => $nights,
                 ];
             });
-            
-            return response()->json(['rooms' => $transformedRooms]);
 
+            return response()->json(['rooms' => $transformedRooms]);
         } catch (\Exception $e) {
             Log::error('Availability check error: ' . $e->getMessage());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
