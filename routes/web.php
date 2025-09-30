@@ -10,6 +10,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RoomController;
 
 /*
@@ -36,6 +37,7 @@ Route::get('/check-ai-models', [AIController::class, 'listModels']);
 */
 Route::prefix('api')->middleware('n8n')->group(function () {
     Route::post('/orders/create-from-bot', [OrderController::class, 'createFromBot']);
+    Route::post('/reviews/create-from-bot', [ReviewController::class, 'storeFromBot']);
     Route::post('/interactions', [InteractionController::class, 'store']);
 });
 

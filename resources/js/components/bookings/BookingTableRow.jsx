@@ -13,13 +13,13 @@ import { Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 
 const interactionDisplayMap = {
     view_services: { label: "Service Menu Opened" },
-    req_svc:       { label: "Service Details Viewed" },
-    ord_svc:       { label: "Option Selected" },
-    confirm_ord:   { label: "Order Confirmed" },
-    payment:       { label: "Payment Method Chosen" },
-    cancel:        { label: "Order Cancelled" },
+    req_svc: { label: "Service Details Viewed" },
+    ord_svc: { label: "Option Selected" },
+    confirm_ord: { label: "Order Confirmed" },
+    payment: { label: "Payment Method Chosen" },
+    rate: { label: "Rating Submitted" },
+    cancel: { label: "Order Cancelled" },
 };
-
 
 const BookingTableRow = ({
     booking,
