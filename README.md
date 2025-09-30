@@ -1,61 +1,82 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# CRM Hotel Documentation
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Overview
 
-## About Laravel
+CRM Hotel is a modern Customer Relationship Management system designed to help hotel operators manage guest interactions, bookings, rooms, and services efficiently. The system streamlines hotel operations and enhances guest satisfaction through an integrated dashboard and automation features.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+**Tech Stack:**  
+- JavaScript (Frontend: React + Inertia.js)
+- PHP (Backend: Laravel)
+- Other (Automation integrations)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Features
 
-## Learning Laravel
+### 1. User Authentication
+- **Login/Register:** Secure authentication flow for hotel staff and admins.
+- **Role-Based Access:** Different roles (Admin, Staff, etc.) provide access to appropriate dashboard features.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 2. Dashboard
+- **Main Navigation:** Sidebar with links to core modules (Bookings, Rooms, Customers, Services, Orders).
+- **Personalized Role Display:** Sidebar adapts based on user role.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+### 3. Bookings Management
+- **Booking List & Table:** View all bookings, with expandable rows for details.
+- **Filter & Search:** Filter bookings by customer, room, status, and date range ([BookingFilters.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/components/bookings/BookingFilters.jsx)).
+- **CRUD Operations:** Create, edit, and delete bookings.  
+  - Fields: customer, room, check-in/out dates, status (reserved, checked in, checked out, cancelled), notes ([BookingForm.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/components/bookings/BookingForm.jsx)).
+- **Booking Status Tracking:** Update status as guests check in/out or cancel.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 4. Room Management
+- **Room Directory:** List all rooms with types and numbers.
+- **Room Filters:** Filter and sort rooms by status, type, and room number ([Rooms.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/Pages/Rooms.jsx)).
+- **CRUD Operations:** Add, edit, or delete rooms ([RoomForm.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/components/rooms/RoomForm.jsx)).
 
-## Laravel Sponsors
+### 5. Customer Management
+- **Customer List:** Manage hotel guest information (not detailed above, but implied by booking features).
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### 6. Upselling and Automation
+- **Integration with n8n:** Automated upselling messages sent via Telegram bot when guests check-in or interact with services ([AIController.php](https://github.com/mangogik/crm-hotel/blob/main/app/Http/Controllers/AIController.php)).
+- **Behavior Analysis:** System analyzes guest behavior and suggests actionable promotions or trends in JSON format.
 
-### Premium Partners
+### 7. User Experience
+- **Modern UI:** Clean interface with background images, overlays, and responsive design ([Welcome.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/Pages/Welcome.jsx)).
+- **Notifications:** Success/error feedback for actions like booking creation.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+---
 
-## Contributing
+## Getting Started
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+1. **Login/Register:** Access the dashboard via secure login or registration.
+2. **Navigate:** Use the sidebar to manage rooms, bookings, customers, and services.
+3. **Create Bookings:** Fill the booking form with customer and room details, select status, and add notes.
+4. **Manage Rooms:** Add new rooms or update existing details.
+5. **Automation:** Let the system handle upselling via Telegram.
+6. **Analyze Trends:** Review automated recommendations for business optimization.
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Example Workflows
 
-## Security Vulnerabilities
+### Add a Booking
+- Click "Add Booking" in the Bookings section.
+- Select customer and room, set dates, choose status, and add notes.
+- Submit and receive feedback.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Add a Room
+- Click "Add Room" in the Rooms section.
+- Fill out room information and save.
 
-## License
+### Filter Bookings
+- Use filters to search by customer, room, status, or date.
+- Clear filters to reset the view.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## Integration & Automation
+
+- **n8n Workflows:** Integrates with n8n for event-driven automation.
+- **Telegram Bot:** Automatically sends promotional messages to guests.
+
+---
