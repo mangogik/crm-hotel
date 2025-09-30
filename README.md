@@ -2,81 +2,66 @@
 
 ## Overview
 
-CRM Hotel is a modern Customer Relationship Management system designed to help hotel operators manage guest interactions, bookings, rooms, and services efficiently. The system streamlines hotel operations and enhances guest satisfaction through an integrated dashboard and automation features.
+CRM Hotel is a modern Customer Relationship Management system designed to help hotel operators manage guest interactions, bookings, rooms, services, and orders efficiently. The system streamlines hotel operations and enhances guest satisfaction through an integrated dashboard and automation features.
 
 **Tech Stack:**  
 - JavaScript (Frontend: React + Inertia.js)
 - PHP (Backend: Laravel)
-- Other (Automation integrations)
+- n8n (Automation integrations)
 
 ---
 
 ## Features
 
 ### 1. User Authentication
-- **Login/Register:** Secure authentication flow for hotel staff and admins.
-- **Role-Based Access:** Different roles (Admin, Staff, etc.) provide access to appropriate dashboard features.
+- **Login/Register:** Secure authentication flow for hotel staff and manager.
+- **Role-Based Access:** Different roles (Manager, Front Office) provide access to appropriate dashboard features.
 
 ### 2. Dashboard
-- **Main Navigation:** Sidebar with links to core modules (Bookings, Rooms, Customers, Services, Orders).
+- **Main Navigation:** Sidebar with links to core modules ( Dashboard, Customers, Bookings, Rooms, Services, Orders, AI Analytics).
 - **Personalized Role Display:** Sidebar adapts based on user role.
 
+### 3. Customer Management
+- **Customer List:** View all hotel guests/customers with expandable rows for details.
+- **Search, Filter, and Sort:** Search by name, email, and phone, or filter by Country, Membership, and Last Visit Date.
+- **CRUD Operations:** Add, edit, delete customer profiles.
+
 ### 3. Bookings Management
-- **Booking List & Table:** View all bookings, with expandable rows for details.
-- **Filter & Search:** Filter bookings by customer, room, status, and date range ([BookingFilters.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/components/bookings/BookingFilters.jsx)).
-- **CRUD Operations:** Create, edit, and delete bookings.  
-  - Fields: customer, room, check-in/out dates, status (reserved, checked in, checked out, cancelled), notes ([BookingForm.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/components/bookings/BookingForm.jsx)).
-- **Booking Status Tracking:** Update status as guests check in/out or cancel.
+- **Booking List:** View all bookings with expandable rows for details.
+- **Search, Filter, and Sort:** Search by customer name, and room, or filter by booking status, and date range.
+- **CRUD Operations:** Create, edit, delete bookings.
 
 ### 4. Room Management
-- **Room Directory:** List all rooms with types and numbers.
-- **Room Filters:** Filter and sort rooms by status, type, and room number ([Rooms.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/Pages/Rooms.jsx)).
-- **CRUD Operations:** Add, edit, or delete rooms ([RoomForm.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/components/rooms/RoomForm.jsx)).
+- **Room List:** View all rooms with expandable rows for details.
+- **Search, Filter, and Sort:** Search by room number or filter by room type and status.
+- **CRUD Operations:** Add, edit, delete rooms.
 
-### 5. Customer Management
-- **Customer List:** Manage hotel guest information (not detailed above, but implied by booking features).
+### 6. Service Management
+- **Service List:** View all services with expandable rows for details.
+- **Search, Filter, and Sort:** Search by service name or filter by service type and fulfillment type.
+- **CRUD Operations:** Add, edit, delete services.
+- **Service Options:** Configure options/variants for each service.
 
-### 6. Upselling and Automation
-- **Integration with n8n:** Automated upselling messages sent via Telegram bot when guests check-in or interact with services ([AIController.php](https://github.com/mangogik/crm-hotel/blob/main/app/Http/Controllers/AIController.php)).
-- **Behavior Analysis:** System analyzes guest behavior and suggests actionable promotions or trends in JSON format.
+### 7. Order Management
+- **Order List:** View all orders with expandable rows for details.
+- **Order Creation:** Create new orders by selecting customer and services. Support for multiple services per order.
+- **Order Editing:** Update existing orders, including changing services, quantities, and statuses.
+- **Order Status Tracking:** Track order status (pending, completed, cancelled, etc.).
+- **Integration:** Orders can be created automatically by bot (n8n integration).
+- **Order History:** Review order history for each guest and service.
 
-### 7. User Experience
-- **Modern UI:** Clean interface with background images, overlays, and responsive design ([Welcome.jsx](https://github.com/mangogik/crm-hotel/blob/main/resources/js/Pages/Welcome.jsx)).
-- **Notifications:** Success/error feedback for actions like booking creation.
-
----
-
-## Getting Started
-
-1. **Login/Register:** Access the dashboard via secure login or registration.
-2. **Navigate:** Use the sidebar to manage rooms, bookings, customers, and services.
-3. **Create Bookings:** Fill the booking form with customer and room details, select status, and add notes.
-4. **Manage Rooms:** Add new rooms or update existing details.
-5. **Automation:** Let the system handle upselling via Telegram.
-6. **Analyze Trends:** Review automated recommendations for business optimization.
-
----
-
-## Example Workflows
-
-### Add a Booking
-- Click "Add Booking" in the Bookings section.
-- Select customer and room, set dates, choose status, and add notes.
-- Submit and receive feedback.
-
-### Add a Room
-- Click "Add Room" in the Rooms section.
-- Fill out room information and save.
-
-### Filter Bookings
-- Use filters to search by customer, room, status, or date.
-- Clear filters to reset the view.
+### 8. AI Analytics
+- **Automated Guest Behavior Analysis:** The system uses AI to analyze guest interactions and service usage.
+- **Trend Detection:** Identify key behavioral trends, most popular products, and missed opportunities.
+- **Actionable Recommendations:** Receive concrete recommendations for promotions and service improvements, tailored for hotel staff or automated bot actions.
+- **Integrated Reporting:** AI-generated insights are presented in a clear, professional format for business decisions.
+- **Customization:** AI analytics work with real-time data from bookings, orders, and guest behavior.
 
 ---
 
 ## Integration & Automation
 
-- **n8n Workflows:** Integrates with n8n for event-driven automation.
+- **n8n Workflows:** Integrates with n8n for event-driven automation (e.g., orders from Telegram bot).
 - **Telegram Bot:** Automatically sends promotional messages to guests.
 
 ---
