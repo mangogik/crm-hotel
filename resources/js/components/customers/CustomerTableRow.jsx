@@ -67,6 +67,10 @@ const CustomerTableRow = ({
                         </Badge>
                     )}
                 </TableCell>
+                {/* Tambahkan sel untuk Birth Date */}
+                <TableCell>
+                    {customer.birth_date ? formatDate(customer.birth_date) : "N/A"}
+                </TableCell>
                 <TableCell>
                     <Badge variant="outline">
                         {customer.total_visits}{" "}
@@ -115,9 +119,9 @@ const CustomerTableRow = ({
             {/* BAGIAN DETAIL YANG DIPERLUAS */}
             {isExpanded && (
                 <TableRow key={`${customer.id}-details`}>
-                    <TableCell colSpan={8} className="p-4 bg-muted/20">
+                    {/* Perbarui colSpan karena ada kolom baru */}
+                    <TableCell colSpan={9} className="p-4 bg-muted/20">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Kolom 1: Customer Information */}
                             <div>
                                 <h5 className="text-sm font-medium mb-2">
                                     Notes
@@ -128,7 +132,6 @@ const CustomerTableRow = ({
                                 </p>
                             </div>
 
-                            {/* Kolom 2: Booking History */}
                             <div>
                                 <h5 className="text-sm font-medium mb-2">
                                     Booking History

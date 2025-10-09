@@ -1,3 +1,4 @@
+// resources/js/Pages/Orders.jsx
 import { useState, useEffect } from "react";
 import { usePage, useForm, router } from "@inertiajs/react";
 import { Button } from "../components/ui/button";
@@ -14,7 +15,7 @@ import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
 import AuthenticatedLayout from "../Layouts/AuthenticatedLayout";
 
-// Import newly created components
+// Import components
 import OrderHeader from "../components/orders/OrderHeader";
 import OrderFilters from "../components/orders/OrderFilters";
 import OrdersTable from "../components/orders/OrdersTable";
@@ -29,20 +30,20 @@ export default function Orders() {
         services,
         filters: initialFilters,
         flash,
+        totals,
     } = usePage().props;
+
     const countries = [
-        ...new Set(
-            customers
-                .map((customer) => customer.passport_country)
-                .filter(Boolean)
-        ),
+        ...new Set(customers.map((c) => c.passport_country).filter(Boolean)),
     ];
+
+    // filters
     const [searchTerm, setSearchTerm] = useState(initialFilters.search || "");
     const [selectedStatus, setSelectedStatus] = useState(
         initialFilters.status || "all"
     );
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(
-        initialFilters.payment_method || "all"
+        initialFilters.payment_preference || "all"
     );
     const [selectedCountry, setSelectedCountry] = useState(
         initialFilters.country || "all"
@@ -54,14 +55,20 @@ export default function Orders() {
         initialFilters.sort_direction || "desc"
     );
 
+    // modals
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [currentOrder, setCurrentOrder] = useState(null);
+
     const [expandedRows, setExpandedRows] = useState([]);
     const [orderServices, setOrderServices] = useState([
         { id: "", quantity: 1, details: {} },
     ]);
+
+    // promotions (client-side)
+    const [eligiblePromos, setEligiblePromos] = useState([]); // [{id, name, ...}]
+    const [checkingPromo, setCheckingPromo] = useState(false);
 
     const isPending = currentOrder?.status === "pending";
 
@@ -70,7 +77,12 @@ export default function Orders() {
             customer_id: "",
             services: [{ id: "", quantity: 1, details: {} }],
             status: "pending",
-            payment_method: "cash",
+            payment_preference: "cash",
+
+            // for backend
+            promotion_id: "",
+            event_code: "",
+            booking_id: "",
         });
 
     useEffect(() => {
@@ -81,6 +93,7 @@ export default function Orders() {
     useEffect(() => {
         const timer = setTimeout(applyFilters, 500);
         return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         searchTerm,
         selectedStatus,
@@ -97,7 +110,7 @@ export default function Orders() {
                 search: searchTerm,
                 status: selectedStatus === "all" ? "" : selectedStatus,
                 country: selectedCountry === "all" ? "" : selectedCountry,
-                payment_method:
+                payment_preference:
                     selectedPaymentMethod === "all"
                         ? ""
                         : selectedPaymentMethod,
@@ -112,7 +125,7 @@ export default function Orders() {
 
     const handleSort = (field) => {
         if (sortBy === field) {
-            setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+            setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
         } else {
             setSortBy(field);
             setSortDirection("asc");
@@ -123,6 +136,8 @@ export default function Orders() {
         reset();
         clearErrors();
         setOrderServices([{ id: "", quantity: 1, details: {} }]);
+        setEligiblePromos([]);
+        setData("status", "pending");
         setIsCreateModalOpen(true);
     };
 
@@ -136,10 +151,14 @@ export default function Orders() {
             customer_id: order.customer_id,
             services: servicesData,
             status: order.status,
-            payment_method: order.payment_method,
+            payment_preference: order.payment_preference,
+            promotion_id: "",
+            event_code: "",
+            booking_id: order.booking_id || "",
         });
         setOrderServices(servicesData);
         clearErrors();
+        setEligiblePromos([]); // not used on edit
         setCurrentOrder(order);
         setIsEditModalOpen(true);
     };
@@ -179,36 +198,33 @@ export default function Orders() {
         setSearchTerm("");
         setSelectedStatus("all");
         setSelectedPaymentMethod("all");
-        setSelectedCountry("all"); // Reset country filter
+        setSelectedCountry("all");
         setSortBy("created_at");
         setSortDirection("desc");
     };
 
-    // --- Helper & Dynamic UI Functions ---
+    // helpers
     const formatPrice = (price) =>
         new Intl.NumberFormat("id-ID", {
             style: "currency",
             currency: "IDR",
         }).format(price || 0);
-    const formatDate = (dateString) =>
-        new Date(dateString).toLocaleDateString();
-    const getStatusBadge = (status) => {
-        let variant = "secondary"; // default
 
+    const getStatusBadge = (status) => {
+        let variant = "secondary";
         switch (status) {
             case "pending":
-                variant = "warning"; // kuning
+                variant = "warning";
                 break;
             case "paid":
-                variant = "success"; // hijau
+                variant = "success";
                 break;
             case "cancelled":
-                variant = "destructive"; // merah
+                variant = "destructive";
                 break;
             default:
                 variant = "outline";
         }
-
         return (
             <Badge
                 variant={variant}
@@ -218,20 +234,19 @@ export default function Orders() {
             </Badge>
         );
     };
+
     const getPaymentBadge = (method) => {
         let variant = "secondary";
-
         switch (method) {
             case "cash":
-                variant = "purple"; // hijau
+                variant = "purple";
                 break;
             case "online":
-                variant = "info"; // biru
+                variant = "info";
                 break;
             default:
                 variant = "outline";
         }
-
         return (
             <Badge
                 variant={variant}
@@ -241,6 +256,7 @@ export default function Orders() {
             </Badge>
         );
     };
+
     const toggleRow = (id) =>
         setExpandedRows((prev) =>
             prev.includes(id)
@@ -248,7 +264,7 @@ export default function Orders() {
                 : [...prev, id]
         );
 
-    // --- Service Form Handlers ---
+    // services handlers
     const addService = () => {
         const newServices = [
             ...orderServices,
@@ -257,19 +273,22 @@ export default function Orders() {
         setOrderServices(newServices);
         setData("services", newServices);
     };
+
     const removeService = (index) => {
         if (orderServices.length <= 1) return;
         const newServices = orderServices.filter((_, i) => i !== index);
         setOrderServices(newServices);
         setData("services", newServices);
     };
+
     const updateService = (index, field, value) => {
         const newServices = [...orderServices];
         newServices[index] = { ...newServices[index], [field]: value };
-        if (field === "id") newServices[index].details = {}; // Reset details on service change
+        if (field === "id") newServices[index].details = {}; // reset details when changing service
         setOrderServices(newServices);
         setData("services", newServices);
     };
+
     const updateServiceDetail = (index, detailField, value) => {
         const newServices = [...orderServices];
         newServices[index].details = {
@@ -280,15 +299,94 @@ export default function Orders() {
         setData("services", newServices);
     };
 
+    // === Promo eligibility ===
+    async function tryCheckEligibility({
+        customerId,
+        serviceIds,
+        eventCode,
+    } = {}) {
+        // Guard: only fetch when inputs are valid
+        if (
+            !customerId ||
+            !Array.isArray(serviceIds) ||
+            serviceIds.length === 0
+        ) {
+            setEligiblePromos([]);
+            return { promotions: [] };
+        }
+
+        setCheckingPromo(true);
+
+        const token = document.querySelector(
+            'meta[name="csrf-token"]'
+        )?.content;
+
+        const res = await fetch(route("promotions.checkEligibility"), {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "X-CSRF-TOKEN": token,
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            body: JSON.stringify({
+                customer_id: Number(customerId),
+                service_ids: serviceIds.map(Number).filter(Boolean),
+                event_code: eventCode || null,
+            }),
+        });
+
+        if (!res.ok) {
+            setCheckingPromo(false);
+            let msg = `HTTP ${res.status}`;
+            try {
+                const j = await res.json();
+                if (j?.message) msg = j.message;
+                if (j?.errors)
+                    console.error("[checkEligibility] 422 errors:", j.errors);
+            } catch {}
+            throw new Error(`Failed to check promotions: ${msg}`);
+        }
+
+        const data = await res.json(); // { promotions: [...] }
+        setEligiblePromos(data?.promotions || []);
+        setCheckingPromo(false);
+        return data;
+    }
+
+    // Re-check promo whenever create modal is open and these fields change
+    useEffect(() => {
+        if (!isCreateModalOpen) return;
+
+        const customerId = data.customer_id;
+        const serviceIds = (data.services || [])
+            .map((s) => s.id)
+            .filter(Boolean);
+        const eventCode = data.event_code || "";
+
+        tryCheckEligibility({ customerId, serviceIds, eventCode }).catch(
+            (err) => {
+                console.error(err);
+                toast.error("Failed to check promotions");
+            }
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        isCreateModalOpen,
+        data.customer_id,
+        JSON.stringify(data.services),
+        data.event_code,
+    ]);
+
     const buildPaginationUrl = (url) => {
         if (!url) return null;
         const urlObj = new URL(url);
-        // This ensures existing query params from inertia links are preserved and new ones are added
         const params = new URLSearchParams(urlObj.search);
         params.set("search", searchTerm);
         params.set("status", selectedStatus === "all" ? "" : selectedStatus);
         params.set(
-            "payment_method",
+            "payment_preference",
             selectedPaymentMethod === "all" ? "" : selectedPaymentMethod
         );
         params.set("sort_by", sortBy);
@@ -297,9 +395,9 @@ export default function Orders() {
     };
 
     return (
-        <div className="container mx-auto py-2 px-4">
+        <div className="container mx-auto px-4">
+            <OrderHeader onAddOrder={openCreateModal} totals={totals} />
             <Card className="mb-8">
-                <OrderHeader onAddOrder={openCreateModal} />
                 <CardContent>
                     <OrderFilters
                         searchTerm={searchTerm}
@@ -313,9 +411,8 @@ export default function Orders() {
                         clearFilters={clearFilters}
                         countries={countries}
                     />
-
                     <OrdersTable
-                        orders={ordersData}
+                        orders={ordersData?.data || []}
                         expandedRows={expandedRows}
                         toggleRow={toggleRow}
                         openEditModal={openEditModal}
@@ -323,7 +420,7 @@ export default function Orders() {
                         getStatusBadge={getStatusBadge}
                         getPaymentBadge={getPaymentBadge}
                         formatPrice={formatPrice}
-                        formatDate={formatDate}
+                        formatDate={(d) => new Date(d).toLocaleDateString()}
                         sortBy={sortBy}
                         sortDirection={sortDirection}
                         handleSort={handleSort}
@@ -339,15 +436,22 @@ export default function Orders() {
             {/* Create Order Modal */}
             <Dialog
                 open={isCreateModalOpen}
-                onOpenChange={setIsCreateModalOpen}
+                onOpenChange={(open) => {
+                    setIsCreateModalOpen(open);
+                    if (!open) {
+                        setEligiblePromos([]);
+                        setCheckingPromo(false);
+                    }
+                }}
             >
-                <DialogContent className="sm:max-w-[700px]">
+                <DialogContent className="sm:max-w-[760px]">
                     <DialogHeader>
                         <DialogTitle>Create New Order</DialogTitle>
                         <DialogDescription>
                             Add a new customer order
                         </DialogDescription>
                     </DialogHeader>
+
                     <form onSubmit={handleCreate}>
                         <OrderForm
                             data={data}
@@ -360,7 +464,11 @@ export default function Orders() {
                             updateServiceDetail={updateServiceDetail}
                             addService={addService}
                             removeService={removeService}
+                            // promo props
+                            eligiblePromos={eligiblePromos}
+                            checkingPromo={checkingPromo}
                         />
+
                         <DialogFooter>
                             <Button type="submit" disabled={processing}>
                                 Create Order
@@ -393,6 +501,8 @@ export default function Orders() {
                             removeService={removeService}
                             isPending={isPending}
                             isStatusUpdateOnly={true}
+                            eligiblePromos={[]} // not used in edit
+                            checkingPromo={false} // not used in edit
                         />
                         <DialogFooter>
                             <Button type="submit" disabled={processing}>

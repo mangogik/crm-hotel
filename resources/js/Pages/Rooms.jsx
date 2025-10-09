@@ -1,5 +1,6 @@
+// resources/js/Pages/Rooms.jsx
 import { useState, useEffect } from "react";
-import { usePage, useForm, router } from "@inertiajs/react";
+import { usePage, router } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,10 +29,7 @@ export default function Rooms() {
     
     const [currentRoom, setCurrentRoom] = useState(null);
     const [expandedRows, setExpandedRows] = useState([]);
-
-    const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm({
-        room_number: '', room_type: '', capacity: '', price_per_night: '', status: 'available'
-    });
+    const [isBulkMode, setIsBulkMode] = useState(false); // Track if we're in bulk mode
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -64,14 +62,11 @@ export default function Rooms() {
     };
     
     const openCreateModal = () => {
-        reset();
-        clearErrors();
+        setIsBulkMode(false); // Reset to single mode when opening
         setIsCreateModalOpen(true);
     };
 
     const openEditModal = (room) => {
-        setData({ ...room });
-        clearErrors();
         setCurrentRoom(room);
         setIsEditModalOpen(true);
     };
@@ -81,18 +76,22 @@ export default function Rooms() {
         setIsDeleteModalOpen(true);
     };
     
-    const handleCreate = (e) => {
-        e.preventDefault();
-        post(route("rooms.store"), { onSuccess: () => setIsCreateModalOpen(false) });
+    const handleCreateSuccess = () => {
+        setIsCreateModalOpen(false);
     };
 
-    const handleUpdate = (e) => {
-        e.preventDefault();
-        put(route("rooms.update", currentRoom.id), { onSuccess: () => setIsEditModalOpen(false) });
+    const handleEditSuccess = () => {
+        setIsEditModalOpen(false);
+        setCurrentRoom(null);
     };
 
     const handleDelete = () => {
-        router.delete(route("rooms.destroy", currentRoom.id), { onSuccess: () => setIsDeleteModalOpen(false) });
+        router.delete(route("rooms.destroy", currentRoom.id), { 
+            onSuccess: () => {
+                setIsDeleteModalOpen(false);
+                setCurrentRoom(null);
+            }
+        });
     };
     
     const clearFilters = () => {
@@ -117,6 +116,11 @@ export default function Rooms() {
         return `${urlObj.pathname}?${params.toString()}`;
     };
 
+    // Handle mode change from RoomForm
+    const handleModeChange = (isRangeMode) => {
+        setIsBulkMode(isRangeMode);
+    };
+
     return (
         <div className="container mx-auto py-2 px-4">
             <Card className="mb-8">
@@ -139,26 +143,46 @@ export default function Rooms() {
             </Card>
 
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader><DialogTitle>Create New Room</DialogTitle></DialogHeader>
-                    <form onSubmit={handleCreate}>
-                        <RoomForm data={data} setData={setData} errors={errors} />
-                        <DialogFooter className="mt-4"><Button type="submit" disabled={processing}>Create Room</Button></DialogFooter>
-                    </form>
+                <DialogContent className={`${isBulkMode ? 'sm:max-w-4xl' : 'sm:max-w-2xl'} max-h-[90vh] overflow-y-auto`}>
+                    <DialogHeader>
+                        <DialogTitle>Create New Room</DialogTitle>
+                        <DialogDescription>
+                            Add a new room to the hotel. You can create a single room or a range of rooms at once.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <RoomForm 
+                        onSuccess={handleCreateSuccess}
+                        onCancel={() => setIsCreateModalOpen(false)}
+                        onModeChange={handleModeChange}
+                    />
                 </DialogContent>
             </Dialog>
 
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader><DialogTitle>Edit Room</DialogTitle></DialogHeader>
-                    <form onSubmit={handleUpdate}>
-                        <RoomForm data={data} setData={setData} errors={errors} />
-                        <DialogFooter className="mt-4"><Button type="submit" disabled={processing}>Update Room</Button></DialogFooter>
-                    </form>
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Edit Room</DialogTitle>
+                        <DialogDescription>
+                            Update the room details. Note: You cannot edit a range of rooms at once.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <RoomForm 
+                        initialData={currentRoom}
+                        onSuccess={handleEditSuccess}
+                        onCancel={() => {
+                            setIsEditModalOpen(false);
+                            setCurrentRoom(null);
+                        }}
+                    />
                 </DialogContent>
             </Dialog>
 
-            <DeleteRoomModal isOpen={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen} onConfirm={handleDelete} room={currentRoom} />
+            <DeleteRoomModal 
+                isOpen={isDeleteModalOpen} 
+                onOpenChange={setIsDeleteModalOpen} 
+                onConfirm={handleDelete} 
+                room={currentRoom} 
+            />
         </div>
     );
 }

@@ -13,27 +13,26 @@ import {
 import { toast } from "sonner";
 import AuthenticatedLayout from "../Layouts/AuthenticatedLayout";
 import { Badge } from "@/components/ui/badge";
-
-// Import komponen yang sudah ada
 import ServiceHeader from "../components/services/ServiceHeader";
 import ServiceFilters from "../components/services/ServiceFilters";
 import ServicesTable from "../components/services/ServicesTable";
 import ServiceForm from "../components/services/ServiceForm";
 import DeleteServiceModal from "../components/services/DeleteServiceModal";
 import Pagination from "../components/services/Pagination";
-
-// Import komponen insight baru
 import ServiceHighlightCard from "../components/services/insights/ServiceHighlightCard";
 import RankTableCard from "../components/services/insights/RankTableCard";
 
 export default function Services() {
-    // Menambahkan `insights` dari props
     const { services, filters, flash, insights } = usePage().props;
 
     const [searchTerm, setSearchTerm] = useState(filters.search || "");
     const [selectedType, setSelectedType] = useState(filters.type || "all");
     const [selectedFulfillment, setSelectedFulfillment] = useState(
         filters.fulfillment_type || "all"
+    );
+
+    const [selectedOfferingSession, setSelectedOfferingSession] = useState(
+        filters.offering_session || "all"
     );
     const [sortBy, setSortBy] = useState(filters.sort_by || "created_at");
     const [sortDirection, setSortDirection] = useState(
@@ -51,6 +50,7 @@ export default function Services() {
             description: "",
             type: "fixed",
             fulfillment_type: "direct",
+            offering_session: "post_checkin", 
             price: "",
             unit_name: "",
             options: [{ name: "", price: "" }],
@@ -61,10 +61,11 @@ export default function Services() {
         if (flash?.error) toast.error(flash.error);
     }, [flash]);
 
+    // Added selectedOfferingSession to dependency array
     useEffect(() => {
         const timer = setTimeout(() => applyFilters(), 500);
         return () => clearTimeout(timer);
-    }, [searchTerm, selectedType, selectedFulfillment, sortBy, sortDirection]);
+    }, [searchTerm, selectedType, selectedFulfillment, selectedOfferingSession, sortBy, sortDirection]);
 
     const applyFilters = (page = 1) => {
         router.get(
@@ -74,6 +75,8 @@ export default function Services() {
                 type: selectedType === "all" ? "" : selectedType,
                 fulfillment_type:
                     selectedFulfillment === "all" ? "" : selectedFulfillment,
+                offering_session:
+                    selectedOfferingSession === "all" ? "" : selectedOfferingSession,
                 sort_by: sortBy,
                 sort_direction: sortDirection,
                 page,
@@ -99,6 +102,7 @@ export default function Services() {
             description: service.description || "",
             type: service.type,
             fulfillment_type: service.fulfillment_type,
+            offering_session: service.offering_session || "post_checkin",
             price: service.price || "",
             unit_name: service.unit_name || "",
             options:
@@ -140,11 +144,12 @@ export default function Services() {
         setSearchTerm("");
         setSelectedType("all");
         setSelectedFulfillment("all");
+        setSelectedOfferingSession("all"); // Reset new filter
         setSortBy("created_at");
         setSortDirection("desc");
     };
 
-    // --- FUNGSI HELPER YANG DIPERLUKAN TABEL (DIKEMBALIKAN) ---
+    // --- HELPER FUNCTIONS ---
     const formatPrice = (price) =>
         new Intl.NumberFormat("id-ID", {
             style: "currency",
@@ -159,63 +164,109 @@ export default function Services() {
                 : [...prev, id]
         );
 
-    const getTypeBadge = (type, unitName) => {
-        let variant = "outline";
-        let label = type;
+const getTypeBadge = (type, unitName) => {
+    let label = type;
 
-        switch (type) {
-            case "fixed":
-                variant = "success";
-                label = "Fixed";
-                break;
-            case "per_unit":
-                variant = "info";
-                label = `Per Unit ${unitName ? `(${unitName})` : ""}`;
-                break;
-            case "selectable":
-                variant = "warning";
-                label = "Selectable";
-                break;
-            default:
-                label = type;
-        }
+    switch (type) {
+        case "fixed":
+            label = "Fixed";
+            break;
+        case "per_unit":
+            label = `Per Unit ${unitName ? `(${unitName})` : ""}`;
+            break;
+        case "selectable":
+            label = "Select";
+            break;
+        default:
+            label = type;
+    }
 
-        return (
-            <Badge
-                variant={variant}
-                className="capitalize px-2 py-1 text-xs font-medium"
-            >
-                {label}
-            </Badge>
-        );
+    // Palet warna untuk tipe layanan
+    const colorClasses = {
+        fixed: "bg-blue-100 text-blue-800 border-blue-200",
+        per_unit: "bg-emerald-100 text-emerald-800 border-emerald-200",
+        selectable: "bg-violet-100 text-violet-800 border-violet-200",
     };
 
-    const getFulfillmentBadge = (fulfillment) => {
-        let variant = "outline";
-        let label = fulfillment;
+    const badgeColor = colorClasses[type] || "bg-gray-100 text-gray-800 border-gray-200";
 
-        switch (fulfillment) {
-            case "direct":
-                variant = "secondary";
-                label = "Direct";
-                break;
-            case "staff_assisted":
-                variant = "default";
-                label = "Staff Assisted";
-                break;
-            default:
-                label = fulfillment;
-        }
+    return (
+        <Badge
+            className={`capitalize text-xs font-medium w-28 justify-center ${badgeColor}`}
+            variant="outline" // Tetap gunakan outline untuk border yang konsisten
+        >
+            {label}
+        </Badge>
+    );
+};
 
-        return (
-            <Badge
-                variant={variant}
-                className="capitalize px-2 py-1 text-xs font-medium"
-            >
-                {label}
-            </Badge>
-        );
+const getFulfillmentBadge = (fulfillment) => {
+    let label = fulfillment;
+
+    switch (fulfillment) {
+        case "direct":
+            label = "Direct";
+            break;
+        case "staff_assisted":
+            label = "Staff Assisted";
+            break;
+        default:
+            label = fulfillment;
+    }
+
+    // Palet warna untuk tipe pemenuhan
+    const colorClasses = {
+        direct: "bg-slate-100 text-slate-800 border-slate-200",
+        staff_assisted: "bg-amber-100 text-amber-800 border-amber-200",
     };
+
+    const badgeColor = colorClasses[fulfillment] || "bg-gray-100 text-gray-800 border-gray-200";
+
+    return (
+        <Badge
+            className={`capitalize text-xs font-medium w-32 justify-center ${badgeColor}`}
+            variant="outline"
+        >
+            {label}
+        </Badge>
+    );
+};
+
+const getOfferingSessionBadge = (session) => {
+    let label = session ? session.replace('_', ' ') : 'N/A';
+
+    switch (session) {
+        case "pre_checkin":
+            label = "Pre Check-in";
+            break;
+        case "post_checkin":
+            label = "Post Check-in";
+            break;
+        case "pre_checkout":
+            label = "Pre Checkout";
+            break;
+        default:
+            label = session;
+    }
+
+    // Palet warna untuk sesi penawaran
+    const colorClasses = {
+        pre_checkin: "bg-indigo-100 text-indigo-800 border-indigo-200",
+        post_checkin: "bg-green-100 text-green-800 border-green-200",
+        pre_checkout: "bg-orange-100 text-orange-800 border-orange-200",
+    };
+
+    const badgeColor = colorClasses[session] || "bg-gray-100 text-gray-800 border-gray-200";
+
+    return (
+        <Badge
+            className={`capitalize text-xs font-medium w-32 justify-center ${badgeColor}`}
+            variant="outline"
+        >
+            {label}
+        </Badge>
+    );
+};
 
     // Form options handlers
     const addOption = () =>
@@ -244,6 +295,10 @@ export default function Services() {
             "fulfillment_type",
             selectedFulfillment === "all" ? "" : selectedFulfillment
         );
+        params.set( 
+            "offering_session",
+            selectedOfferingSession === "all" ? "" : selectedOfferingSession
+        );
         params.set("sort_by", sortBy);
         params.set("sort_direction", sortDirection);
         return `${urlObj.pathname}?${params.toString()}`;
@@ -261,6 +316,8 @@ export default function Services() {
                         setSelectedType={setSelectedType}
                         selectedFulfillment={selectedFulfillment}
                         setSelectedFulfillment={setSelectedFulfillment}
+                        selectedOfferingSession={selectedOfferingSession}
+                        setSelectedOfferingSession={setSelectedOfferingSession}
                         clearFilters={clearFilters}
                     />
                     <ServicesTable
@@ -271,6 +328,7 @@ export default function Services() {
                         openDeleteModal={openDeleteModal}
                         getTypeBadge={getTypeBadge}
                         getFulfillmentBadge={getFulfillmentBadge}
+                        getOfferingSessionBadge={getOfferingSessionBadge}
                         formatPrice={formatPrice}
                         sortBy={sortBy}
                         sortDirection={sortDirection}
@@ -367,4 +425,3 @@ export default function Services() {
 }
 
 Services.layout = (page) => <AuthenticatedLayout children={page} />;
-

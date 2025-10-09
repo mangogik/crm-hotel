@@ -80,10 +80,8 @@ export default function AIAnalytics() {
                             <div className="flex items-center gap-4">
                                 <Sigma className="h-8 w-8 text-primary" />
                                 <div>
-                                    {/* Judul diubah */}
                                     <CardTitle>AI Upselling & Conversion Analysis</CardTitle>
                                     <CardDescription>
-                                        {/* Deskripsi diubah */}
                                         Generate AI-powered insights on guest behavior and service conversion rates.
                                     </CardDescription>
                                 </div>

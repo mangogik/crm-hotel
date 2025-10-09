@@ -23,6 +23,7 @@ const ServicesTable = ({
     handleSort,
     getTypeBadge,
     getFulfillmentBadge,
+    getOfferingSessionBadge, // New prop
 }) => {
     const SortableHeader = ({ field, children }) => (
         <TableHead className="cursor-pointer" onClick={() => handleSort(field)}>
@@ -50,6 +51,10 @@ const ServicesTable = ({
                         <SortableHeader field="fulfillment_type">
                             Fulfillment
                         </SortableHeader>
+                        {/* New sortable header for offering session */}
+                        <SortableHeader field="offering_session">
+                            Session
+                        </SortableHeader>
                         <SortableHeader field="price">Price</SortableHeader>
                         <TableHead>Actions</TableHead>
                     </TableRow>
@@ -69,11 +74,13 @@ const ServicesTable = ({
                                 formatFulfillment={formatFulfillment}
                                 getTypeBadge={getTypeBadge}
                                 getFulfillmentBadge={getFulfillmentBadge}
+                                getOfferingSessionBadge={getOfferingSessionBadge}
                             />
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8">
+                            {/* Updated colSpan from 6 to 7 */}
+                            <TableCell colSpan={7} className="text-center py-8">
                                 No services found
                             </TableCell>
                         </TableRow>

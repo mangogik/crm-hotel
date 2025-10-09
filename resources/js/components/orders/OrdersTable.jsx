@@ -49,7 +49,7 @@ const OrdersTable = ({
                         </SortableHeader>
                         <TableHead>Country</TableHead>
                         <SortableHeader field="status">Status</SortableHeader>
-                        <SortableHeader field="payment_method">
+                        <SortableHeader field="payment_preference">
                             Payment
                         </SortableHeader>
                         {/* <SortableHeader field="total_price">
@@ -61,7 +61,6 @@ const OrdersTable = ({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {console.log(orders)}
                     {orders.length > 0 ? (
                         orders.map((order) => (
                             <OrderTableRow

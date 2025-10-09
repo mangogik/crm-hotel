@@ -1,0 +1,1 @@
+const e="id-ID",i="Asia/Jakarta",n=new Intl.DateTimeFormat(e,{timeZone:i,year:"numeric",month:"2-digit",day:"2-digit"}),a=new Intl.DateTimeFormat(e,{timeZone:i,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});function m(t){return t?n.format(new Date(t)):"—"}function r(t){return t?a.format(new Date(t)):"—"}export{i as A,m as a,r as f};

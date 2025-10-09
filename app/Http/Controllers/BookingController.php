@@ -6,13 +6,15 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Room;
 use App\Models\Service;
+use App\Services\RoomStatusService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log; // Kita tetap pakai Log untuk keamanan
+use Illuminate\Support\Facades\Log;
 
 class BookingController extends Controller
 {
@@ -72,6 +74,7 @@ class BookingController extends Controller
                 'checkin_at' => $booking->checkin_at->toIso8601String(),
                 'checkout_at' => $booking->checkout_at->toIso8601String(),
                 'status' => $booking->status,
+                'source'      => $booking->source,
                 'notes' => $booking->notes,
                 'created_at' => $booking->created_at->toIso8601String(),
                 'customer' => $booking->customer,
@@ -121,20 +124,47 @@ class BookingController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, RoomStatusService $roomSvc)
     {
-        // Log data yang masuk SEBELUM validasi untuk memastikan data sampai
-        Log::info('Incoming data for new booking:', $request->all());
+        Log::debug('[Booking.store] incoming payload (raw)', $request->all());
 
-        $data = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'room_id' => 'required|exists:rooms,id',
-            'checkin_at' => 'required|date',
-            'checkout_at' => 'required|date|after_or_equal:checkin_at',
-            'status' => 'required|string',
-            'notes' => 'nullable|string',
+        try {
+            $data = $request->validate([
+                'customer_id' => 'required|exists:customers,id',
+                'room_id'     => 'required|exists:rooms,id',
+                'checkin_at'  => 'required|date',
+                'checkout_at' => 'required|date|after_or_equal:checkin_at',
+                'status'      => 'nullable|string',
+                'notes'       => 'nullable|string',
+                'source'      => ['nullable', Rule::in(['direct', 'ota', 'agent'])],
+            ]);
+            Log::debug('[Booking.store] validated data', $data);
+        } catch (\Throwable $e) {
+            Log::error('[Booking.store] validation failed', [
+                'errors' => $e instanceof \Illuminate\Validation\ValidationException ? $e->errors() : $e->getMessage(),
+            ]);
+            throw $e; // biar tetap balik ke FE sesuai default Laravel
+        }
+
+        // default-kan source
+        $data['source'] = $data['source'] ?? 'direct';
+
+        // Derive status dari checkin_at
+        $checkin = Carbon::parse($data['checkin_at']);
+        if ($checkin->isFuture()) {
+            $data['status'] = 'reserved';
+        } elseif ($checkin->isToday()) {
+            $candidate = $request->input('status');
+            $data['status'] = in_array($candidate, ['reserved', 'checked_in']) ? $candidate : 'reserved';
+        } else {
+            $data['status'] = $request->input('status', 'reserved');
+        }
+        Log::debug('[Booking.store] final status/source after derive', [
+            'status' => $data['status'],
+            'source' => $data['source'],
         ]);
 
+        // Cek overlap
         $existingBooking = Booking::where('room_id', $data['room_id'])
             ->where(function ($query) use ($data) {
                 $query->where('checkin_at', '<', $data['checkout_at'])
@@ -144,78 +174,138 @@ class BookingController extends Controller
             ->exists();
 
         if ($existingBooking) {
+            Log::warning('[Booking.store] conflict: room already booked', [
+                'room_id'     => $data['room_id'],
+                'checkin_at'  => $data['checkin_at'],
+                'checkout_at' => $data['checkout_at'],
+            ]);
             return Redirect::back()->with('error', 'Room is already booked for the selected dates.');
         }
 
-        $booking = Booking::create($data);
-        $customer = Customer::find($booking->customer_id);
-
-        $room = Room::find($data['room_id']);
-        if ($room) {
-            $room->status = 'occupied';
-            $room->save();
-        }
-
-        // Kirim webhook ke n8n
         try {
-            Http::post('https://otomations.kumtura.me/webhook-test/booking-created', [
-                'id' => $customer->id,
+            $booking = Booking::create($data);
+            Log::debug('[Booking.store] booking created', [
                 'booking_id' => $booking->id,
-                'name' => $customer->name,
-                'email' => $customer->email,
-                'phone' => $customer->phone,
-                'passport_country' => $customer->passport_country,
-                'checkin_at' => $booking->checkin_at,
-                'checkout_at' => $booking->checkout_at,
-                'notes' => $booking->notes,
+                'source'     => $booking->source,
             ]);
-        } catch (\Exception $e) {
-            Log::error('Gagal kirim webhook booking-created', ['error' => $e->getMessage()]);
-        }
 
-        return Redirect::route('bookings.index')->with('success', 'Booking created successfully.');
+            $customer = Customer::find($booking->customer_id);
+            $roomSvc->recompute($data['room_id']);
+
+            try {
+                // Http::post('https://otomations.kumtura.me/webhook-test/booking-created', [
+                //     'id' => $customer->id,
+                //     'booking_id' => $booking->id,
+                //     'name' => $customer->name,
+                //     'email' => $customer->email,
+                //     'phone' => $customer->phone,
+                //     'passport_country' => $customer->passport_country,
+                //     'checkin_at' => $booking->checkin_at,
+                //     'checkout_at' => $booking->checkout_at,
+                //     'notes' => $booking->notes,
+                // ]);
+                Http::post('http://localhost:8088/webhook-test/booking-created', [
+                    'id' => $customer->id,
+                    'room_id' => $booking->room_id,
+                    'checkin_at' => $booking->checkin_at,
+                    'checkout_at' => $booking->checkout_at,
+                    'notes' => $booking->notes,
+                    'source' => $booking->source,
+                ]);
+                Log::debug('[Booking.store] webhook sent');
+            } catch (\Throwable $e) {
+                Log::error('[Booking.store] webhook failed', ['error' => $e->getMessage()]);
+            }
+
+            return Redirect::route('bookings.index')->with('success', 'Booking created successfully.');
+        } catch (\Throwable $e) {
+            Log::error('[Booking.store] create failed', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+            return Redirect::back()->with('error', 'Failed to create booking.');
+        }
     }
 
-    public function update(Request $request, Booking $booking)
+
+    public function update(Request $request, Booking $booking, RoomStatusService $roomSvc)
     {
         $data = $request->validate([
             'customer_id' => 'required|exists:customers,id',
-            'room_id' => 'required|exists:rooms,id',
-            'checkin_at' => 'required|date',
+            'room_id'     => 'required|exists:rooms,id',
+            'checkin_at'  => 'required|date',
             'checkout_at' => 'required|date|after_or_equal:checkin_at',
-            'status' => ['required', Rule::in(['reserved', 'checked_in', 'checked_out', 'cancelled'])],
-            'notes' => 'nullable|string',
+            'status'      => ['required', Rule::in(['reserved', 'checked_in', 'checked_out', 'cancelled'])],
+            'notes'       => 'nullable|string',
+            'override_future_checkin' => 'sometimes|boolean',
         ]);
 
+        $checkinAt         = Carbon::parse($data['checkin_at']);
+        $isFutureCheckin   = $checkinAt->isAfter(now()) && !$checkinAt->isSameDay(now());
+        $wantsCheckedIn    = $data['status'] === 'checked_in';
+
+        if ($wantsCheckedIn && $isFutureCheckin && !$request->boolean('override_future_checkin')) {
+            return back()->withErrors([
+                'status' => 'This booking’s check-in time is in the future. Confirm the override if you really want to set it to Checked In.',
+            ])->withInput();
+        }
+        if ($wantsCheckedIn && $isFutureCheckin && $request->boolean('override_future_checkin')) {
+            Log::warning('[Booking.update] Override future check-in accepted', [
+                'booking_id' => $booking->id,
+                'checkin_at' => $data['checkin_at'],
+                'user_id'    => optional($request->user())->id,
+            ]);
+        }
+
         $originalStatus = $booking->getOriginal('status');
-        $originalRoomId = $booking->room_id;
+        $originalRoomId = (int) $booking->room_id;
 
-        $booking->update($data);
+        $roomChanged   = (int)$data['room_id'] !== $originalRoomId;
 
-        if ($originalStatus === 'reserved' && $data['status'] === 'checked_in') {
-            $customer = Customer::find($data['customer_id']);
-            $customer->incrementVisits($data['checkin_at']);
+        DB::transaction(function () use ($booking, $data, $originalStatus) {
+            $booking->update($data);
+
+            // total_visits rules (unchanged)
+            if ($originalStatus !== 'checked_out' && $data['status'] === 'checked_out') {
+                DB::table('customers')->where('id', $data['customer_id'])
+                    ->update(['total_visits' => DB::raw('total_visits + 1')]);
+            }
+            if ($originalStatus === 'checked_out' && in_array($data['status'], ['reserved', 'checked_in'])) {
+                DB::table('customers')->where('id', $data['customer_id'])
+                    ->update(['total_visits' => DB::raw('GREATEST(total_visits - 1, 0)')]);
+            }
+        });
+
+        // Determine what changed (now that $booking is fresh)
+        $booking->refresh();
+        $statusChanged = $booking->wasChanged('status');
+        $datesChanged  = $booking->wasChanged(['checkin_at', 'checkout_at']);
+
+        Log::info('[Booking.update] post-commit change flags', [
+            'booking_id'    => $booking->id,
+            'roomChanged'   => $roomChanged,
+            'statusChanged' => $statusChanged,
+            'datesChanged'  => $datesChanged,
+            'new_status'    => $booking->status,
+            'room_id'       => (int)$booking->room_id,
+        ]);
+
+
+        if ($roomChanged) {
+            $roomSvc->recompute($originalRoomId);
         }
-
-        if ($originalRoomId != $data['room_id']) {
-            Room::find($originalRoomId)->update(['status' => 'available']);
+        if ($roomChanged || $statusChanged || $datesChanged) {
+            $roomSvc->recompute((int)$booking->room_id);
         }
-
-        $currentRoom = Room::find($data['room_id']);
-        if ($data['status'] === 'checked_out' || $data['status'] === 'cancelled') {
-            $currentRoom->status = 'available';
-        } else {
-            $currentRoom->status = 'occupied';
-        }
-        $currentRoom->save();
 
         return Redirect::route('bookings.index')->with('success', 'Booking updated successfully.');
     }
 
-    public function destroy(Booking $booking)
+    public function destroy(Booking $booking, RoomStatusService $roomSvc)
     {
-        $booking->room()->update(['status' => 'available']);
+        $roomId = $booking->room_id;
         $booking->delete();
+        $roomSvc->recompute($roomId);
 
         return Redirect::route('bookings.index')->with('success', 'Booking deleted successfully.');
     }
@@ -277,5 +367,45 @@ class BookingController extends Controller
             Log::error('Availability check error: ' . $e->getMessage());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
+    }
+
+    public function byCustomer(\App\Models\Customer $customer, \Illuminate\Http\Request $req)
+    {
+        $onlyActive = (bool) $req->boolean('onlyActive', true);
+
+        $q = $customer->bookings()
+            ->select('id', 'room_id', 'status', 'checkin_at', 'checkout_at')
+            ->with([
+                // pilih kolom yang benar dari tabel rooms
+                'room:id,room_number,room_type'
+            ]);
+
+        if ($onlyActive) {
+            $q->whereIn('status', ['reserved', 'checked_in']);
+        }
+
+        $rows = $q->orderByDesc('checkin_at')->get();
+
+        $payload = $rows->map(function ($b) {
+            $label = null;
+            if ($b->room) {
+                // contoh label: "Room 101 (Standard)"
+                $label = 'Room ' . $b->room->room_number;
+                if (!empty($b->room->room_type)) {
+                    $label .= ' (' . $b->room->room_type . ')';
+                }
+            }
+
+            return [
+                'id'          => $b->id,
+                'status'      => $b->status,
+                'room_label'  => $label,              // <- dipakai di UI
+                'room_number' => $b->room->room_number ?? null, // kalau mau
+                'checkin_at'  => $b->checkin_at,
+                'checkout_at' => $b->checkout_at,
+            ];
+        });
+
+        return response()->json(['bookings' => $payload]);
     }
 }

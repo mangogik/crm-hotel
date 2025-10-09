@@ -1,6 +1,0 @@
-import{c as n,a as o}from"./button-H6AwmmAM.js";import{j as s,r as t}from"./app-EWpIB3HM.js";/**
- * @license lucide-react v0.544.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const u=[["path",{d:"M20 6 9 17l-5-5",key:"1gmf2c"}]],d=n("check",u);function l({className:e,type:r,...i}){return s.jsx("input",{type:r,"data-slot":"input",className:o("file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm","focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]","aria-invalid:ring-destructive/20 aria-invalid:border-destructive",e),...i})}function f(e){const r=t.useRef({value:e,previous:e});return t.useMemo(()=>(r.current.value!==e&&(r.current.previous=r.current.value,r.current.value=e),r.current.previous),[e])}export{d as C,l as I,f as u};

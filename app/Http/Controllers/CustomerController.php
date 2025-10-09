@@ -19,7 +19,6 @@ class CustomerController extends Controller
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc']) ? $request->input('sort_direction', 'desc') : 'desc';
 
-        // DIUBAH: Ganti 'latestBooking.room' menjadi 'bookings.room' untuk mengambil semua booking
         $query = Customer::with(['membership', 'bookings.room']);
 
         if ($search && is_string($search)) {
@@ -30,8 +29,6 @@ class CustomerController extends Controller
                     ->orWhere('passport_country', 'like', "%{$search}%");
             });
         }
-
-        // ... (sisa query filter Anda tetap sama) ...
 
         if ($passportCountry && is_string($passportCountry)) {
             $query->where('passport_country', $passportCountry);
@@ -51,7 +48,8 @@ class CustomerController extends Controller
             $query->whereDate('last_visit_date', '<=', $lastVisitTo);
         }
 
-        $allowedSorts = ['name', 'email', 'phone', 'created_at', 'passport_country', 'total_visits', 'last_visit_date'];
+        // Tambahkan 'birth_date' ke daftar kolom yang bisa diurutkan
+        $allowedSorts = ['name', 'email', 'phone', 'created_at', 'passport_country', 'total_visits', 'last_visit_date', 'birth_date'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -67,6 +65,7 @@ class CustomerController extends Controller
                 'email' => $c->email,
                 'phone' => $c->phone,
                 'passport_country' => $c->passport_country,
+                'birth_date' => $c->birth_date ? $c->birth_date->toDateString() : null, // Tambahkan birth_date
                 'total_visits' => $c->total_visits,
                 'last_visit_date' => $c->last_visit_date ? $c->last_visit_date->toDateString() : null,
                 'notes' => $c->notes,
@@ -75,10 +74,8 @@ class CustomerController extends Controller
                     'membership_type' => $c->membership->membership_type,
                     'discount_percentage' => $c->membership->discount_percentage,
                 ] : null,
-
-                // DIUBAH: Ganti 'latest_booking' menjadi 'bookings' (jamak)
                 'bookings' => $c->bookings
-                    ->sortByDesc('checkin_at') // Urutkan dari yang terbaru
+                    ->sortByDesc('checkin_at')
                     ->map(function ($booking) {
                         return [
                             'id' => $booking->id,
@@ -87,7 +84,7 @@ class CustomerController extends Controller
                             'status' => $booking->status,
                             'room_number' => $booking->room ? $booking->room->room_number : null,
                         ];
-                    })->values()->all(), // Gunakan values() untuk reset keys array
+                    })->values()->all(),
             ];
         });
 
@@ -108,7 +105,6 @@ class CustomerController extends Controller
 
     public function show(Customer $customer)
     {
-        // Perbaikan eager loading
         $customer->load(['membership', 'bookings.room', 'bookings.orders']);
 
         return Inertia::render('Customers/Show', [
@@ -118,6 +114,7 @@ class CustomerController extends Controller
                 'email' => $customer->email,
                 'phone' => $customer->phone,
                 'passport_country' => $customer->passport_country,
+                'birth_date' => $customer->birth_date ? $customer->birth_date->toDateString() : null, // Tambahkan birth_date
                 'total_visits' => $customer->total_visits,
                 'last_visit_date' => $customer->last_visit_date ? $customer->last_visit_date->toDateString() : null,
                 'notes' => $customer->notes,
@@ -139,7 +136,7 @@ class CustomerController extends Controller
                             return [
                                 'id' => $order->id,
                                 'status' => $order->status,
-                                'payment_method' => $order->payment_method,
+                                'payment_preference' => $order->payment_preference,
                                 'total_price' => $order->total_price,
                             ];
                         }),
@@ -157,6 +154,7 @@ class CustomerController extends Controller
             'email'            => 'nullable|email|max:255',
             'phone'            => 'nullable|string|max:20',
             'passport_country' => 'nullable|string|max:100',
+            'birth_date'       => 'nullable|date', // Tambahkan validasi
             'notes'            => 'nullable|string',
         ]);
 
@@ -164,7 +162,6 @@ class CustomerController extends Controller
 
         $customer = Customer::create($data);
 
-        // Create membership record untuk customer baru
         $customer->membership()->create([
             'membership_type' => 'regular',
             'join_date' => now()->toDateString(),
@@ -182,6 +179,7 @@ class CustomerController extends Controller
             'email'            => 'nullable|email|max:255',
             'phone'            => 'nullable|string|max:20',
             'passport_country' => 'nullable|string|max:100',
+            'birth_date'       => 'nullable|date', // Tambahkan validasi
             'notes'            => 'nullable|string',
         ]);
 

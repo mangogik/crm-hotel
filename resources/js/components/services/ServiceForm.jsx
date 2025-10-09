@@ -64,6 +64,20 @@ const ServiceForm = ({ data, setData, errors, addOption, removeOption, updateOpt
                 {errors.fulfillment_type && <p className="text-red-500 text-sm col-span-4 text-right">{errors.fulfillment_type}</p>}
             </div>
 
+            {/* Offering Session - New Field */}
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="offering_session" className="text-right">Session *</Label>
+                <Select value={data.offering_session} onValueChange={(value) => setData("offering_session", value)}>
+                    <SelectTrigger className="col-span-3"><SelectValue placeholder="Select offering session" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="pre_checkin">Pre Check-in</SelectItem>
+                        <SelectItem value="post_checkin">Post Check-in</SelectItem>
+                        <SelectItem value="pre_checkout">Pre Checkout</SelectItem>
+                    </SelectContent>
+                </Select>
+                {errors.offering_session && <p className="text-red-500 text-sm col-span-4 text-right">{errors.offering_session}</p>}
+            </div>
+
             {/* Conditional Fields based on Type */}
             {data.type === "fixed" && (
                  <div className="grid grid-cols-4 items-center gap-4">
@@ -111,4 +125,3 @@ const ServiceForm = ({ data, setData, errors, addOption, removeOption, updateOpt
 };
 
 export default ServiceForm;
-

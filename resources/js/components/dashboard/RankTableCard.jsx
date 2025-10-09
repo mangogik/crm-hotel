@@ -67,7 +67,6 @@ export default function RankTableCard({ data }) {
                                     {service.orderCount}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    {console.log(data)}
                                     {formatCurrency(service.totalRevenue)}
                                 </TableCell>
                             </TableRow>

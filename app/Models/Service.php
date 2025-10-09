@@ -13,6 +13,7 @@ class Service extends Model
         'price',
         'type',
         'fulfillment_type',
+        'offering_session',
         'unit_name',
         'options',
         'membership_discount'
@@ -33,5 +34,10 @@ class Service extends Model
     public function getDiscountForMembership($membershipType)
     {
         return $this->membership_discount[$membershipType] ?? 0;
+    }
+
+    public function promotions()
+    {
+        return $this->belongsToMany(Promotion::class, 'promotion_services');
     }
 }

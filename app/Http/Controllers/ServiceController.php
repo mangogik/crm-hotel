@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class ServiceController extends Controller
 {
@@ -15,6 +16,7 @@ class ServiceController extends Controller
         $search = $request->input('search');
         $type = $request->input('type');
         $fulfillmentType = $request->input('fulfillment_type');
+        $offeringSession = $request->input('offering_session'); // New filter
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc'])
             ? $request->input('sort_direction', 'desc')
@@ -25,7 +27,7 @@ class ServiceController extends Controller
         if ($search && is_string($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -37,7 +39,12 @@ class ServiceController extends Controller
             $query->where('fulfillment_type', $fulfillmentType);
         }
 
-        $allowedSorts = ['name', 'type', 'fulfillment_type', 'price', 'created_at'];
+        // New filter for offering_session
+        if ($offeringSession && is_string($offeringSession)) {
+            $query->where('offering_session', $offeringSession);
+        }
+
+        $allowedSorts = ['name', 'type', 'fulfillment_type', 'price', 'created_at', 'offering_session'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
@@ -60,31 +67,30 @@ class ServiceController extends Controller
         });
         $highestRevenueService = $servicesWithRevenue->sortByDesc('revenue')->first();
 
-
         // 3. Data untuk Tabel Peringkat (Top 5 Services by Revenue)
         $topServices = Service::with(['orders' => function ($query) {
             $query->where('orders.created_at', '>=', Carbon::now()->subDays(7))
-                  ->where('orders.status', '!=', 'cancelled');
+                ->where('orders.status', '!=', 'cancelled');
         }])
-        ->get()
-        ->map(function ($service) {
-            $totalRevenue = $service->orders->sum(fn($order) => (float) $order->pivot->price_per_unit * (int) $order->pivot->quantity);
-            $orderCount = $service->orders->count();
-            return [
-                'id' => $service->id,
-                'serviceName' => $service->name,
-                'orderCount' => $orderCount,
-                'totalRevenue' => $totalRevenue,
-            ];
-        })
-        ->where('orderCount', '>', 0) // Hanya tampilkan yang pernah dipesan
-        ->sortByDesc('totalRevenue')
-        ->take(5)
-        ->values()
-        ->map(function ($service, $index) {
-            $service['rank'] = $index + 1;
-            return $service;
-        });
+            ->get()
+            ->map(function ($service) {
+                $totalRevenue = $service->orders->sum(fn($order) => (float) $order->pivot->price_per_unit * (int) $order->pivot->quantity);
+                $orderCount = $service->orders->count();
+                return [
+                    'id' => $service->id,
+                    'serviceName' => $service->name,
+                    'orderCount' => $orderCount,
+                    'totalRevenue' => $totalRevenue,
+                ];
+            })
+            ->where('orderCount', '>', 0) // Hanya tampilkan yang pernah dipesan
+            ->sortByDesc('totalRevenue')
+            ->take(5)
+            ->values()
+            ->map(function ($service, $index) {
+                $service['rank'] = $index + 1;
+                return $service;
+            });
 
         if ($request->wantsJson()) {
             return response()->json($services);
@@ -92,7 +98,7 @@ class ServiceController extends Controller
 
         return Inertia::render('Services', [
             'services' => $services,
-            'filters' => $request->only(['search', 'type', 'fulfillment_type', 'sort_by', 'sort_direction']),
+            'filters' => $request->only(['search', 'type', 'fulfillment_type', 'offering_session', 'sort_by', 'sort_direction']),
             'insights' => [
                 'mostPopular' => $mostPopularService,
                 'highestRevenue' => $highestRevenueService,
@@ -104,8 +110,6 @@ class ServiceController extends Controller
             ],
         ]);
     }
-    
-    // ... (Metode store, update, destroy, dan validateData tetap sama)
 
     public function store(Request $request)
     {
@@ -117,6 +121,7 @@ class ServiceController extends Controller
             'type'             => $validated['type'],
             'unit_name'        => $validated['type'] === 'per_unit' ? $validated['unit_name'] : null,
             'fulfillment_type' => $validated['fulfillment_type'],
+            'offering_session' => $validated['offering_session'],
             'price'            => $validated['type'] === 'selectable' ? 0 : $validated['price'],
             'options'          => $validated['type'] === 'selectable' ? $validated['options'] : null,
         ]);
@@ -136,21 +141,24 @@ class ServiceController extends Controller
     {
         $validated = $this->validateData($request);
 
-        $service->update([
+        $updateData = [
             'name'             => $validated['name'],
             'description'      => $validated['description'] ?? null,
             'type'             => $validated['type'],
             'unit_name'        => $validated['type'] === 'per_unit' ? $validated['unit_name'] : null,
             'fulfillment_type' => $validated['fulfillment_type'],
+            'offering_session' => $validated['offering_session'],
             'price'            => $validated['type'] === 'selectable' ? 0 : $validated['price'],
             'options'          => $validated['type'] === 'selectable' ? $validated['options'] : null,
-        ]);
+        ];
+
+        $service->update($updateData);
 
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Service updated successfully.',
-                'data'    => $service,
+                'data'    => $service->fresh(),
             ]);
         }
 
@@ -173,11 +181,17 @@ class ServiceController extends Controller
 
     private function validateData(Request $request)
     {
+        // Log 4: Log data request di awal metode validasi
+        Log::info('SERVICE VALIDATION START', [
+            'request_data' => $request->all()
+        ]);
+
         $rules = [
             'name'             => 'required|string|min:3',
             'description'      => 'nullable|string',
             'type'             => 'required|in:fixed,per_unit,selectable',
             'fulfillment_type' => 'required|in:direct,staff_assisted',
+            'offering_session' => 'required|in:pre_checkin,post_checkin,pre_checkout',
         ];
 
         if ($request->type === 'per_unit') {
@@ -191,7 +205,13 @@ class ServiceController extends Controller
             $rules['options.*.price'] = 'required|numeric|min:0';
         }
 
-        return $request->validate($rules);
+        $validatedData = $request->validate($rules);
+
+        // Log 5: Log data yang berhasil melewati validasi
+        Log::info('SERVICE VALIDATION SUCCESS', [
+            'validated_data' => $validatedData
+        ]);
+
+        return $validatedData;
     }
 }
-

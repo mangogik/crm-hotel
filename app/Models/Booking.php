@@ -12,7 +12,8 @@ class Booking extends Model
         'checkin_at',
         'checkout_at',
         'status',
-        'notes'
+        'notes',
+        'source'
     ];
 
     protected $casts = [

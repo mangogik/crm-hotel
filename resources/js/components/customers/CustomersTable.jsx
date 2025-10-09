@@ -45,15 +45,13 @@ const CustomersTable = ({
                         <SortableHeader field="email">Email</SortableHeader>
                         <SortableHeader field="phone">Phone</SortableHeader>
                         <SortableHeader field="passport_country">Country</SortableHeader>
+                        <SortableHeader field="birth_date">Birth Date</SortableHeader> {/* Tambahkan header baru */}
                         <SortableHeader field="total_visits">Visits</SortableHeader>
-                        {/* <SortableHeader field="last_visit_date">Last Visit</SortableHeader> */}
                         <TableHead>Membership</TableHead>
-                        {/* <TableHead>Latest Booking</TableHead> */}
                         <TableHead>Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {console.table(customers)}
                     {customers.length > 0 ? (
                         customers.map((customer) => (
                             <CustomerTableRow
@@ -68,7 +66,8 @@ const CustomersTable = ({
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={9} className="text-center py-8">
+                            {/* Perbarui colSpan karena ada kolom baru */}
+                            <TableCell colSpan={10} className="text-center py-8">
                                 No customers found
                             </TableCell>
                         </TableRow>

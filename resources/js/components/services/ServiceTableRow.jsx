@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Pencil, Trash2, ChevronDown, ChevronRight, Info } from "lucide-react";
 
@@ -14,6 +13,7 @@ const ServiceTableRow = ({
     formatFulfillment,
     getTypeBadge,
     getFulfillmentBadge,
+    getOfferingSessionBadge,
 }) => {
     return (
         <>
@@ -22,7 +22,6 @@ const ServiceTableRow = ({
                 onClick={onToggle}
             >
                 <TableCell>
-                    {/* Tombol dropdown sekarang ada di setiap baris */}
                     <Button variant="ghost" size="sm">
                         {isExpanded ? (
                             <ChevronDown className="h-4 w-4" />
@@ -32,25 +31,15 @@ const ServiceTableRow = ({
                     </Button>
                 </TableCell>
                 <TableCell className="font-medium">{service.name}</TableCell>
-                {/* <TableCell>
-                    <Badge variant="outline">
-                        {formatType(service.type)}
-                        {service.type === "per_unit" &&
-                            ` (${service.unit_name})`}
-                    </Badge>
-                </TableCell>
-                <TableCell>
-                    <Badge variant="secondary">
-                        {formatFulfillment(service.fulfillment_type)}
-                    </Badge>
-                </TableCell> */}
                 <TableCell>
                     {getTypeBadge(service.type, service.unit_name)}
                 </TableCell>
                 <TableCell>
                     {getFulfillmentBadge(service.fulfillment_type)}
                 </TableCell>
-
+                <TableCell>
+                    {getOfferingSessionBadge(service.offering_session)}
+                </TableCell>
                 <TableCell>
                     {service.type === "selectable" ? (
                         <div className="flex items-center gap-1">
@@ -86,10 +75,9 @@ const ServiceTableRow = ({
             {/* Tampilan Detail yang diperluas */}
             {isExpanded && (
                 <TableRow key={`${service.id}-details`}>
-                    <TableCell colSpan={6} className="p-4 bg-muted/20">
-                        {/* Menggunakan grid 2 kolom seperti pada Order Details */}
+                    {/* Updated colSpan from 6 to 7 */}
+                    <TableCell colSpan={7} className="p-4 bg-muted/20">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Kolom Kiri: Deskripsi */}
                             <div>
                                 <h4 className="font-medium text-sm mb-1">
                                     Description
@@ -100,7 +88,6 @@ const ServiceTableRow = ({
                                 </p>
                             </div>
 
-                            {/* Kolom Kanan: Opsi jika tipe layanan adalah 'selectable' */}
                             {service.type === "selectable" &&
                                 service.options?.length > 0 && (
                                     <div>

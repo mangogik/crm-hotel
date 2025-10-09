@@ -7,6 +7,7 @@ const CustomerForm = ({ data, setData, errors }) => {
         { id: "email", label: "Email", type: "email" },
         { id: "phone", label: "Phone", type: "text" },
         { id: "passport_country", label: "Country", type: "text" },
+        { id: "birth_date", label: "Birth Date", type: "date" }, // Tambahkan field birth_date
         { id: "notes", label: "Notes", type: "text" },
     ];
 

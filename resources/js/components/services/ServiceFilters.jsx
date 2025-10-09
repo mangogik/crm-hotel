@@ -16,6 +16,8 @@ const ServiceFilters = ({
     setSelectedType,
     selectedFulfillment,
     setSelectedFulfillment,
+    selectedOfferingSession, // New prop
+    setSelectedOfferingSession, // New prop
     clearFilters,
 }) => {
     return (
@@ -29,7 +31,7 @@ const ServiceFilters = ({
                     className="pl-10"
                 />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
                 <Select value={selectedType} onValueChange={setSelectedType}>
                     <SelectTrigger className="w-[180px]">
                         <Filter className="mr-2 h-4 w-4" />
@@ -53,6 +55,19 @@ const ServiceFilters = ({
                         <SelectItem value="staff_assisted">Staff Assisted</SelectItem>
                     </SelectContent>
                 </Select>
+                {/* New filter for offering session */}
+                <Select value={selectedOfferingSession} onValueChange={setSelectedOfferingSession}>
+                    <SelectTrigger className="w-[180px]">
+                        <Filter className="mr-2 h-4 w-4" />
+                        <SelectValue placeholder="Session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Sessions</SelectItem>
+                        <SelectItem value="pre_checkin">Pre Check-in</SelectItem>
+                        <SelectItem value="post_checkin">Post Check-in</SelectItem>
+                        <SelectItem value="pre_checkout">Pre Checkout</SelectItem>
+                    </SelectContent>
+                </Select>
                 <Button
                     variant="outline"
                     onClick={clearFilters}
@@ -66,4 +81,3 @@ const ServiceFilters = ({
 };
 
 export default ServiceFilters;
-

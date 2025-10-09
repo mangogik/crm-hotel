@@ -14,10 +14,12 @@ class Customer extends Model
         'passport_country',
         'total_visits',
         'last_visit_date',
+        'birth_date',
         'notes'
     ];
 
     protected $casts = [
+        'birth_date' => 'date',
         'last_visit_date' => 'date'
     ];
 
@@ -27,7 +29,7 @@ class Customer extends Model
 
     public function interactions()
     {
-        return $this->hasMany(CustomerInteraction::class);
+        return $this->hasMany(BookingInteraction::class);
     }
 
     public function membership()
@@ -55,7 +57,6 @@ class Customer extends Model
         return $this->hasMany(Order::class);
     }
 
-    // Method untuk update total_visits dan last_visit_date
     public function incrementVisits($checkinDate)
     {
         $this->total_visits += 1;

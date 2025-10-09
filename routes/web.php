@@ -10,6 +10,9 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RoomController;
 
@@ -57,13 +60,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // --- Grup untuk API internal yang memerlukan otentikasi session ---
     Route::prefix('api')->group(function () {
         Route::get('/bookings/check-availability', [BookingController::class, 'checkAvailability'])->name('bookings.checkAvailability');
+        Route::get('/customers/{customer}/bookings', [BookingController::class, 'byCustomer'])->name('customers.bookings');
+        Route::get('/promotions/check', [PromotionController::class, 'checkEligibility'])->name('promotions.check');
+        Route::post('/promotions/check-eligibility', [PromotionController::class, 'checkEligibility'])->name('promotions.checkEligibility');
     });
 
     // --- HANYA BISA DIAKSES MANAGER ---
     Route::middleware(['role:manager'])->group(function () {
-        Route::get('/history', function () {
-            return Inertia::render('History');
-        })->name('history');
+        // Route::get('/history', function () {
+        //     return Inertia::render('Reports');
+        // })->name('history');
     });
 
     // --- HANYA BISA DIAKSES FRONT OFFICE ---
@@ -73,6 +79,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('orders', OrderController::class);
         Route::resource('bookings', BookingController::class);
         Route::resource('rooms', RoomController::class);
+        Route::resource('reports', ReportController::class);
+        Route::resource('reviews', ReviewController::class);
+        Route::resource('payments', PaymentController::class);
+        Route::resource('promotions', PromotionController::class);
     });
 
     // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
