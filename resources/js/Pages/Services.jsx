@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { usePage, useForm, router } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import {
     Dialog,
     DialogContent,
@@ -23,7 +29,8 @@ import ServiceHighlightCard from "../components/services/insights/ServiceHighlig
 import RankTableCard from "../components/services/insights/RankTableCard";
 
 export default function Services() {
-    const { services, filters, flash, insights } = usePage().props;
+    const { services, filters, flash, insights, filterOptions } =
+        usePage().props;
 
     const [searchTerm, setSearchTerm] = useState(filters.search || "");
     const [selectedType, setSelectedType] = useState(filters.type || "all");
@@ -50,7 +57,7 @@ export default function Services() {
             description: "",
             type: "fixed",
             fulfillment_type: "direct",
-            offering_session: "post_checkin", 
+            offering_session: "post_checkin",
             price: "",
             unit_name: "",
             options: [{ name: "", price: "" }],
@@ -65,7 +72,14 @@ export default function Services() {
     useEffect(() => {
         const timer = setTimeout(() => applyFilters(), 500);
         return () => clearTimeout(timer);
-    }, [searchTerm, selectedType, selectedFulfillment, selectedOfferingSession, sortBy, sortDirection]);
+    }, [
+        searchTerm,
+        selectedType,
+        selectedFulfillment,
+        selectedOfferingSession,
+        sortBy,
+        sortDirection,
+    ]);
 
     const applyFilters = (page = 1) => {
         router.get(
@@ -76,7 +90,9 @@ export default function Services() {
                 fulfillment_type:
                     selectedFulfillment === "all" ? "" : selectedFulfillment,
                 offering_session:
-                    selectedOfferingSession === "all" ? "" : selectedOfferingSession,
+                    selectedOfferingSession === "all"
+                        ? ""
+                        : selectedOfferingSession,
                 sort_by: sortBy,
                 sort_direction: sortDirection,
                 page,
@@ -164,109 +180,118 @@ export default function Services() {
                 : [...prev, id]
         );
 
-const getTypeBadge = (type, unitName) => {
-    let label = type;
+    const getTypeBadge = (type, unitName) => {
+        let label = type;
 
-    switch (type) {
-        case "fixed":
-            label = "Fixed";
-            break;
-        case "per_unit":
-            label = `Per Unit ${unitName ? `(${unitName})` : ""}`;
-            break;
-        case "selectable":
-            label = "Select";
-            break;
-        default:
-            label = type;
-    }
+        switch (type) {
+            case "fixed":
+                label = "Fixed";
+                break;
+            case "per_unit":
+                label = `Per Unit ${unitName ? `(${unitName})` : ""}`;
+                break;
+            case "selectable":
+                label = "Select";
+                break;
+            default:
+                label = type;
+        }
 
-    // Palet warna untuk tipe layanan
-    const colorClasses = {
-        fixed: "bg-blue-100 text-blue-800 border-blue-200",
-        per_unit: "bg-emerald-100 text-emerald-800 border-emerald-200",
-        selectable: "bg-violet-100 text-violet-800 border-violet-200",
+        // Palet warna untuk tipe layanan
+        const colorClasses = {
+            fixed: "bg-blue-100 text-blue-800 border-blue-200",
+            per_unit: "bg-emerald-100 text-emerald-800 border-emerald-200",
+            selectable: "bg-violet-100 text-violet-800 border-violet-200",
+        };
+
+        const badgeColor =
+            colorClasses[type] || "bg-gray-100 text-gray-800 border-gray-200";
+
+        return (
+            <Badge
+                className={`capitalize text-xs font-medium w-28 justify-center ${badgeColor}`}
+                variant="outline" // Tetap gunakan outline untuk border yang konsisten
+            >
+                {label}
+            </Badge>
+        );
     };
 
-    const badgeColor = colorClasses[type] || "bg-gray-100 text-gray-800 border-gray-200";
+    const getFulfillmentBadge = (fulfillment) => {
+        let label = fulfillment;
 
-    return (
-        <Badge
-            className={`capitalize text-xs font-medium w-28 justify-center ${badgeColor}`}
-            variant="outline" // Tetap gunakan outline untuk border yang konsisten
-        >
-            {label}
-        </Badge>
-    );
-};
+        switch (fulfillment) {
+            case "direct":
+                label = "Direct";
+                break;
+            case "staff_assisted":
+                label = "Staff Assisted";
+                break;
+            default:
+                label = fulfillment;
+        }
 
-const getFulfillmentBadge = (fulfillment) => {
-    let label = fulfillment;
+        // Palet warna untuk tipe pemenuhan
+        const colorClasses = {
+            direct: "bg-slate-100 text-slate-800 border-slate-200",
+            staff_assisted: "bg-amber-100 text-amber-800 border-amber-200",
+        };
 
-    switch (fulfillment) {
-        case "direct":
-            label = "Direct";
-            break;
-        case "staff_assisted":
-            label = "Staff Assisted";
-            break;
-        default:
-            label = fulfillment;
-    }
+        const badgeColor =
+            colorClasses[fulfillment] ||
+            "bg-gray-100 text-gray-800 border-gray-200";
 
-    // Palet warna untuk tipe pemenuhan
-    const colorClasses = {
-        direct: "bg-slate-100 text-slate-800 border-slate-200",
-        staff_assisted: "bg-amber-100 text-amber-800 border-amber-200",
+        return (
+            <Badge
+                className={`capitalize text-xs font-medium w-32 justify-center ${badgeColor}`}
+                variant="outline"
+            >
+                {label}
+            </Badge>
+        );
     };
 
-    const badgeColor = colorClasses[fulfillment] || "bg-gray-100 text-gray-800 border-gray-200";
+    const getOfferingSessionBadge = (session) => {
+        let label = session ? session.replace("_", " ") : "N/A";
 
-    return (
-        <Badge
-            className={`capitalize text-xs font-medium w-32 justify-center ${badgeColor}`}
-            variant="outline"
-        >
-            {label}
-        </Badge>
-    );
-};
+        switch (session) {
+            case "pre_checkin":
+                label = "Pre Check-in";
+                break;
+            case "post_checkin":
+                label = "Post Check-in";
+                break;
+            case "pre_checkout":
+                label = "Pre Checkout";
+                break;
+            case "free":
+                label = "Free";
+                break;
+            default:
+                label = session;
+        }
 
-const getOfferingSessionBadge = (session) => {
-    let label = session ? session.replace('_', ' ') : 'N/A';
+        // Palet warna untuk sesi penawaran
+        const colorClasses = {
+            pre_checkin: "bg-indigo-100 text-indigo-800 border-indigo-200",
+            post_checkin: "bg-green-100 text-green-800 border-green-200",
+            pre_checkout: "bg-orange-100 text-orange-800 border-orange-200",
+            free: "bg-rose-100 text-rose-800 border-rose-200",
+        };
 
-    switch (session) {
-        case "pre_checkin":
-            label = "Pre Check-in";
-            break;
-        case "post_checkin":
-            label = "Post Check-in";
-            break;
-        case "pre_checkout":
-            label = "Pre Checkout";
-            break;
-        default:
-            label = session;
-    }
+        const badgeColor =
+            colorClasses[session] ||
+            "bg-gray-100 text-gray-800 border-gray-200";
 
-    // Palet warna untuk sesi penawaran
-    const colorClasses = {
-        pre_checkin: "bg-indigo-100 text-indigo-800 border-indigo-200",
-        post_checkin: "bg-green-100 text-green-800 border-green-200",
-        pre_checkout: "bg-orange-100 text-orange-800 border-orange-200",
+        return (
+            <Badge
+                className={`capitalize text-xs font-medium w-32 justify-center ${badgeColor}`}
+                variant="outline"
+            >
+                {label}
+            </Badge>
+        );
     };
-
-    const badgeColor = colorClasses[session] || "bg-gray-100 text-gray-800 border-gray-200";
-
-    return (
-        <Badge
-            className={`capitalize text-xs font-medium w-32 justify-center ${badgeColor}`}
-            variant="outline"
-        >
-            {label}
-        </Badge>
-    );
-};
 
     // Form options handlers
     const addOption = () =>
@@ -295,7 +320,7 @@ const getOfferingSessionBadge = (session) => {
             "fulfillment_type",
             selectedFulfillment === "all" ? "" : selectedFulfillment
         );
-        params.set( 
+        params.set(
             "offering_session",
             selectedOfferingSession === "all" ? "" : selectedOfferingSession
         );
@@ -319,7 +344,9 @@ const getOfferingSessionBadge = (session) => {
                         selectedOfferingSession={selectedOfferingSession}
                         setSelectedOfferingSession={setSelectedOfferingSession}
                         clearFilters={clearFilters}
+                        filterOptions={filterOptions}
                     />
+
                     <ServicesTable
                         services={services.data}
                         expandedRows={expandedRows}
@@ -343,12 +370,16 @@ const getOfferingSessionBadge = (session) => {
             </Card>
 
             <Card>
-                 <CardHeader>
-                    <CardTitle className="text-2xl font-bold">Services Insights</CardTitle>
-                    <CardDescription>Insights from your services data</CardDescription>
+                <CardHeader>
+                    <CardTitle className="text-2xl font-bold">
+                        Services Insights
+                    </CardTitle>
+                    <CardDescription>
+                        Insights from your services data
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
-                    <ServiceHighlightCard 
+                    <ServiceHighlightCard
                         popularService={insights.mostPopular}
                         profitableService={insights.highestRevenue}
                         formatPrice={formatPrice}
@@ -356,7 +387,6 @@ const getOfferingSessionBadge = (session) => {
                     <RankTableCard data={insights.topServices} />
                 </CardContent>
             </Card>
-
 
             {/* Modals */}
             <Dialog
@@ -417,7 +447,7 @@ const getOfferingSessionBadge = (session) => {
             <DeleteServiceModal
                 isOpen={isDeleteModalOpen}
                 onOpenChange={setIsDeleteModalOpen}
-                onConfirm={handleDelete}    
+                onConfirm={handleDelete}
                 service={currentService}
             />
         </div>

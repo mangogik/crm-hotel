@@ -122,7 +122,8 @@ class ServiceController extends Controller
             'unit_name'        => $validated['type'] === 'per_unit' ? $validated['unit_name'] : null,
             'fulfillment_type' => $validated['fulfillment_type'],
             'offering_session' => $validated['offering_session'],
-            'price'            => $validated['type'] === 'selectable' ? 0 : $validated['price'],
+            // harga 0 untuk selectable (paket) dan free (komplementer)
+            'price'            => in_array($validated['type'], ['selectable','free']) ? 0 : $validated['price'],
             'options'          => $validated['type'] === 'selectable' ? $validated['options'] : null,
         ]);
 
@@ -148,7 +149,7 @@ class ServiceController extends Controller
             'unit_name'        => $validated['type'] === 'per_unit' ? $validated['unit_name'] : null,
             'fulfillment_type' => $validated['fulfillment_type'],
             'offering_session' => $validated['offering_session'],
-            'price'            => $validated['type'] === 'selectable' ? 0 : $validated['price'],
+            'price'            => in_array($validated['type'], ['selectable','free']) ? 0 : $validated['price'],
             'options'          => $validated['type'] === 'selectable' ? $validated['options'] : null,
         ];
 
@@ -189,7 +190,8 @@ class ServiceController extends Controller
         $rules = [
             'name'             => 'required|string|min:3',
             'description'      => 'nullable|string',
-            'type'             => 'required|in:fixed,per_unit,selectable',
+            // tambahkan 'free' ke daftar type
+            'type'             => 'required|in:fixed,per_unit,selectable,free',
             'fulfillment_type' => 'required|in:direct,staff_assisted',
             'offering_session' => 'required|in:pre_checkin,post_checkin,pre_checkout',
         ];
@@ -199,10 +201,12 @@ class ServiceController extends Controller
             $rules['unit_name'] = 'required|string|max:20';
         } elseif ($request->type === 'fixed') {
             $rules['price'] = 'required|numeric|min:0';
-        } else { // selectable
+        } elseif ($request->type === 'selectable') {
             $rules['options'] = 'required|array|min:1';
             $rules['options.*.name'] = 'required|string';
             $rules['options.*.price'] = 'required|numeric|min:0';
+        } elseif ($request->type === 'free') {
+            // tidak ada rule tambahan; price akan dipaksa 0 di layer penyimpanan
         }
 
         $validatedData = $request->validate($rules);

@@ -15,6 +15,26 @@ const ServiceTableRow = ({
     getFulfillmentBadge,
     getOfferingSessionBadge,
 }) => {
+    // Helper untuk menampilkan harga
+    const renderPrice = () => {
+        if (service.type === "selectable") {
+            return (
+                <div className="flex items-center gap-1">
+                    <span className="text-sm">Multiple options</span>
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                </div>
+            );
+        }
+
+        // Jika harga 0 → tampilkan "Free"
+        if (!service.price || Number(service.price) === 0) {
+            return <span>Free</span>;
+        }
+
+        // Default format
+        return formatPrice(service.price);
+    };
+
     return (
         <>
             <TableRow
@@ -31,25 +51,13 @@ const ServiceTableRow = ({
                     </Button>
                 </TableCell>
                 <TableCell className="font-medium">{service.name}</TableCell>
-                <TableCell>
-                    {getTypeBadge(service.type, service.unit_name)}
-                </TableCell>
-                <TableCell>
-                    {getFulfillmentBadge(service.fulfillment_type)}
-                </TableCell>
-                <TableCell>
-                    {getOfferingSessionBadge(service.offering_session)}
-                </TableCell>
-                <TableCell>
-                    {service.type === "selectable" ? (
-                        <div className="flex items-center gap-1">
-                            <span className="text-sm">Multiple options</span>
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                        </div>
-                    ) : (
-                        formatPrice(service.price)
-                    )}
-                </TableCell>
+                <TableCell>{getTypeBadge(service.type, service.unit_name)}</TableCell>
+                <TableCell>{getFulfillmentBadge(service.fulfillment_type)}</TableCell>
+                <TableCell>{getOfferingSessionBadge(service.offering_session)}</TableCell>
+
+                {/* ✅ Menampilkan harga / Free */}
+                <TableCell>{renderPrice()}</TableCell>
+
                 <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="flex space-x-2">
                         <Button
@@ -72,10 +80,8 @@ const ServiceTableRow = ({
                 </TableCell>
             </TableRow>
 
-            {/* Tampilan Detail yang diperluas */}
             {isExpanded && (
                 <TableRow key={`${service.id}-details`}>
-                    {/* Updated colSpan from 6 to 7 */}
                     <TableCell colSpan={7} className="p-4 bg-muted/20">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -105,9 +111,7 @@ const ServiceTableRow = ({
                                                             {option.name}
                                                         </span>
                                                         <span className="font-medium">
-                                                            {formatPrice(
-                                                                option.price
-                                                            )}
+                                                            {formatPrice(option.price)}
                                                         </span>
                                                     </div>
                                                 )

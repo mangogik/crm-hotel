@@ -1,5 +1,11 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Star, MessageSquare, Calendar, TrendingUp } from "lucide-react";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import { Star, MessageSquare, ThumbsUp, ThumbsDown } from "lucide-react";
 
 const ReviewHeader = ({ totals }) => {
     const statsData = [
@@ -10,7 +16,7 @@ const ReviewHeader = ({ totals }) => {
             color: "text-yellow-600",
             bgColor: "bg-yellow-100",
             borderColor: "border-yellow-200",
-            suffix: "/5"
+            suffix: "/5",
         },
         {
             title: "Total Reviews",
@@ -21,20 +27,20 @@ const ReviewHeader = ({ totals }) => {
             borderColor: "border-blue-200",
         },
         {
-            title: "Today's Reviews",
-            value: totals?.today || 0,
-            icon: Calendar,
+            title: "Forwarded to Google",
+            value: totals?.good || 0,
+            icon: ThumbsUp,
             color: "text-green-600",
             bgColor: "bg-green-100",
             borderColor: "border-green-200",
         },
         {
-            title: "Last 7 Days",
-            value: totals?.last7d || 0,
-            icon: TrendingUp,
-            color: "text-purple-600",
-            bgColor: "bg-purple-100",
-            borderColor: "border-purple-200",
+            title: "Not Forwarded",
+            value: totals?.low || 0,
+            icon: ThumbsDown,
+            color: "text-red-600",
+            bgColor: "bg-red-100",
+            borderColor: "border-red-200",
         },
     ];
 
@@ -67,7 +73,8 @@ const ReviewHeader = ({ totals }) => {
                         </CardHeader>
                         <CardContent className="px-2">
                             <div className="text-2xl font-bold">
-                                {kpi.value}{kpi.suffix || ''}
+                                {kpi.value}
+                                {kpi.suffix || ""}
                             </div>
                         </CardContent>
                     </Card>

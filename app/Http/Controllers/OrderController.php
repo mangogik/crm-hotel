@@ -28,11 +28,60 @@ class OrderController extends Controller
         $sortDirection       = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc'])
             ? $request->input('sort_direction', 'desc') : 'desc';
 
+        /**
+         * KPI berbasis TABEL ORDERS saja (abaikan payments yang masih dummy):
+         * - Paid Amount  : sum(grand_total) untuk orders.status = 'paid', fallback hitung dari pivot jika grand_total null/0
+         * - Pending Amount: sum(grand_total) untuk orders.status = 'pending', fallback sama
+         * - Exclude cancelled dari pending/paid (paid pasti bukan cancelled; pending mungkin ya tergantung data, tapi kita hitung yang status persis 'pending')
+         */
+
+        // Ambil orders PAID (berdasarkan kolom status di orders)
+        $paidOrders = Order::with('services')
+            ->where('status', 'paid')
+            ->get();
+
+        $paidAmountFromOrders = $paidOrders->sum(function ($o) {
+            $gt = (float) $o->grand_total;
+            if ($gt <= 0) {
+                $gt = $o->services->sum(function ($s) {
+                    $qty = (float) ($s->pivot->quantity ?? 0);
+                    $ppu = (float) ($s->pivot->price_per_unit ?? 0);
+                    return $qty * $ppu;
+                });
+            }
+            return $gt;
+        });
+
+        // Ambil orders PENDING (berdasarkan kolom status di orders)
+        $pendingOrders = Order::with('services')
+            ->where('status', 'pending')
+            ->get();
+
+        $pendingAmountFromOrders = $pendingOrders->sum(function ($o) {
+            $gt = (float) $o->grand_total;
+            if ($gt <= 0) {
+                $gt = $o->services->sum(function ($s) {
+                    $qty = (float) ($s->pivot->quantity ?? 0);
+                    $ppu = (float) ($s->pivot->price_per_unit ?? 0);
+                    return $qty * $ppu;
+                });
+            }
+            return $gt;
+        });
+
+        // Log ringkas (sekali baris)
+        Log::info('[Orders.index][totals_orders_only]', [
+            'paid_orders_count' => $paidOrders->count(),
+            'paid_amount'       => $paidAmountFromOrders,
+            'pending_orders_count' => $pendingOrders->count(),
+            'pending_amount'    => $pendingAmountFromOrders,
+        ]);
+
         $totals = [
             'total_orders'    => (int) Order::count(),
             'today_orders'    => (int) Order::whereDate('created_at', today())->count(),
-            'paid_amount'     => (float) Order::where('status', 'paid')->sum('grand_total'),
-            'pending_amount'  => (float) Order::where('status', 'pending')->sum('grand_total'),
+            'paid_amount'     => (float) $paidAmountFromOrders,
+            'pending_amount'  => (float) $pendingAmountFromOrders,
             'avg_order_value' => (float) Order::avg('grand_total'),
         ];
 
@@ -89,15 +138,15 @@ class OrderController extends Controller
             'customer_id'                      => ['required', 'exists:customers,id'],
             'services'                         => ['required', 'array', 'min:1'],
             'services.*.id'                    => ['required', 'exists:services,id'],
-            'services.*.quantity'              => ['nullable', 'numeric', 'min:0.01'],
+            'services.*.quantity'              => ['nullable', 'numeric', 'min:0'],
             'services.*.details.package'       => ['nullable', 'string'],
             'services.*.details.weight'        => ['nullable', 'numeric', 'min:0'],
-            'status'                           => ['required', 'string', 'in:pending,paid,cancelled'], // UI masih kirim, tapi kita pertahankan pending by default
+            'status'                           => ['required', 'string', 'in:pending,paid,cancelled'], // FE masih kirim; kita tetap set pending
             'payment_preference'               => ['required', 'string', 'in:cash,online'],
             // opsional
             'promotion_id'                     => ['nullable', 'exists:promotions,id'],
             'booking_id'                       => ['nullable', 'exists:bookings,id'],
-            'event_code'                       => ['nullable', 'string', 'max:100'], // diabaikan (no code) tapi diterima agar FE tidak error
+            'event_code'                       => ['nullable', 'string', 'max:100'],
         ]);
 
         Log::info('[Order.store] START', ['payload' => $validated, 'user_id' => optional($request->user())->id]);
@@ -168,7 +217,7 @@ class OrderController extends Controller
                 'customer_id'        => $validated['customer_id'],
                 'booking_id'         => $validated['booking_id'] ?? null,
                 'payment_preference' => $validated['payment_preference'],
-                // status awal: pending. (Kalau mau, bisa override kalau FE kirim 'paid' untuk scenario tertentu)
+                // status awal: pending
                 'status'             => 'pending',
                 'subtotal'           => $subtotal,
                 'discount_total'     => $discountTotal,
@@ -203,7 +252,6 @@ class OrderController extends Controller
                 'amount'           => $grandTotal,
                 'currency'         => 'IDR',
                 'status'           => 'pending',
-                // kolom lain seperti provider, invoice_url, ref, dsb silakan isi di PaymentController / gateway integration
             ]);
 
             Log::info('[Order.store] PERSISTED', [
@@ -225,7 +273,7 @@ class OrderController extends Controller
             'customer_id'                => ['required', 'exists:customers,id'],
             'services'                   => ['required', 'array', 'min:1'],
             'services.*.id'              => ['required', 'exists:services,id'],
-            'services.*.quantity'        => ['nullable', 'numeric', 'min:0.01'],
+            'services.*.quantity'        => ['nullable', 'numeric', 'min:0'],
             'services.*.details.package' => ['nullable', 'string'],
             'services.*.details.weight'  => ['nullable', 'numeric', 'min:0'],
             'status'                     => ['required', 'string', 'in:pending,paid,cancelled'],
@@ -298,7 +346,7 @@ class OrderController extends Controller
         $grandTotal = max($subtotal - $discountTotal, 0);
 
         DB::transaction(function () use ($order, $validated, $lineItems, $subtotal, $discountTotal, $grandTotal, $promotionUsedPayload) {
-            // a) Update order main fields (status boleh diubah manual kalau memang begitu kebijakanmu)
+            // a) Update order main fields
             $order->update([
                 'customer_id'        => $validated['customer_id'],
                 'booking_id'         => $validated['booking_id'] ?? null,
@@ -340,7 +388,6 @@ class OrderController extends Controller
             ]);
 
             // d) (Opsional) Sinkronkan payment amount jika ingin — di sini **tidak** kita ubah payment yang sudah ada
-            //    Handling perubahan payment sebaiknya di PaymentController / workflow terpisah.
         });
 
         return redirect()->back()->with('success', 'Order berhasil diperbarui.');
@@ -368,7 +415,7 @@ class OrderController extends Controller
             'phone'             => 'required|string',
             'service_id'        => 'required|exists:services,id',
             'booking_id'        => 'required|exists:bookings,id',
-            'selected_option'   => 'required', // string untuk selectable, numerik untuk per_unit
+            'selected_option'   => 'required', // string untuk selectable, numerik untuk per_unit (free diabaikan)
             'payment_preference' => 'required|string|in:online,cash',
             'passport_country'  => 'nullable|string|max:100',
         ]);
@@ -399,14 +446,21 @@ class OrderController extends Controller
                     $details['package'] = $optionName;
                 }
                 break;
+
             case 'fixed':
                 $pricePerUnit = (float) $service->price;
                 break;
+
             case 'per_unit':
                 $weight       = (float) $validated['selected_option'];
                 $quantity     = $weight;
                 $pricePerUnit = (float) $service->price;
                 $details['weight'] = $weight;
+                break;
+
+            case 'free':
+                $quantity     = 1;
+                $pricePerUnit = 0.0;
                 break;
         }
 
@@ -489,13 +543,23 @@ class OrderController extends Controller
                     $pricePerUnit = (float) $service->price;
                     break;
 
+                case 'free':
+                    // Pastikan line gratis selalu 1 unit dan 0 rupiah
+                    $quantity     = 1;
+                    $pricePerUnit = 0.0;
+                    $details      = [];
+                    break;
+
                 case 'fixed':
                 default:
                     $pricePerUnit = (float) $service->price;
             }
 
-            // pastikan minimal 0
-            $quantity   = max($quantity, 0);
+            // pastikan minimal 0 (kecuali free sudah dipaksa 1)
+            if ($service->type !== 'free') {
+                $quantity = max($quantity, 0);
+            }
+
             $lineTotal  = $pricePerUnit * $quantity;
 
             $lineItems[] = [
@@ -560,7 +624,7 @@ class OrderController extends Controller
      * Hitung diskon dari promo:
      * - percent → diterapkan pada subtotal dari services yang dalam scope (kalau scope kosong → semua)
      * - amount (flat) → min(subtotal_scope, amount)
-     * - free service (opsional) tidak di-line-kan; kita cukup catat di promotions_used (analitik)
+     * - free service (opsional) tidak mengurangi line total (kecuali ingin ditambahkan sbg line negatif)
      */
     private function computeDiscountFromPromotion(Promotion $p, array $lineItems, float $subtotal): float
     {
@@ -579,10 +643,8 @@ class OrderController extends Controller
         }
 
         if (!empty($p->discount_amount)) {
-            $discount += min((float)$p->discount_amount, $scopeSubtotal);
+            $discount += min((float) $p->discount_amount, $scopeSubtotal);
         }
-
-        // free_service dicatat sebagai benefit terpisah; tidak mengurangi line total (kecuali kamu ingin menambahkannya sbg line negatif).
 
         // jangan biarkan minus
         $discount = max(0, min($discount, $subtotal));

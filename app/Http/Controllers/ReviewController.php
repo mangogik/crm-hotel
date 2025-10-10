@@ -16,10 +16,10 @@ class ReviewController extends Controller
         $dateFrom      = $request->input('date_from');
         $dateTo        = $request->input('date_to');
 
-        // --- Rating filters (new, with backward compatibility) ---
+        // --- Rating filters (with backward compatibility) ---
         $ratingMode = $request->input('rating_mode'); // 'eq' | 'gte' | 'range' | null
         $rating     = $request->input('rating');      // for 'eq'
-        $minRating  = $request->input('min_rating');  // for 'gte' & 'range' (also legacy)
+        $minRating  = $request->input('min_rating');  // for 'gte' & 'range'
         $maxRating  = $request->input('max_rating');  // for 'range'
 
         $sortBy        = $request->input('sort_by', 'created_at');
@@ -39,7 +39,6 @@ class ReviewController extends Controller
             ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo));
 
         // --- Apply rating filter with modes ---
-        // Default mode: keep your existing behavior (min_rating = gte) when rating_mode is not provided.
         if ($ratingMode === 'eq') {
             if ($rating !== null && $rating !== '') {
                 $query->where('rating', (int) $rating);
@@ -65,14 +64,12 @@ class ReviewController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        // KPI totals (unchanged)
-        $avgRating     = round((float) Review::avg('rating'), 2);
-        $totalReviews  = (int) Review::count();
-        $todayReviews  = (int) Review::whereDate('created_at', now()->toDateString())->count();
-        $last7dReviews = (int) Review::whereBetween('created_at', [
-            now()->copy()->subDays(6)->toDateString(),
-            now()->toDateString(),
-        ])->count();
+        // === KPI: good vs low reviews ===
+        $avgRating = round((float) Review::avg('rating'), 2);
+        $total     = Review::count();
+        $goodCount = Review::where('rating', '>=', 4)->count(); // 4–5 stars
+        $lowCount  = Review::where('rating', '<=', 3)->count(); // 1–3 stars
+
 
         return Inertia::render('Reviews', [
             'reviews' => $reviews,
@@ -80,7 +77,6 @@ class ReviewController extends Controller
                 'search'         => $search,
                 'date_from'      => $dateFrom,
                 'date_to'        => $dateTo,
-                // expose new fields so UI can adopt later without breaking current page
                 'rating_mode'    => $ratingMode,
                 'rating'         => $rating,
                 'min_rating'     => $minRating,
@@ -89,10 +85,10 @@ class ReviewController extends Controller
                 'sort_direction' => $sortDirection,
             ],
             'totals' => [
-                'avg_rating' => $avgRating,
-                'total'      => $totalReviews,
-                'today'      => $todayReviews,
-                'last7d'     => $last7dReviews,
+                'avg_rating'      => $avgRating,
+                'total'           => $total,
+                'good'     => $goodCount,    // Baru: rating 4–5
+                'low'   => $lowCount,  // Baru: rating 1–3
             ],
             'flash' => [
                 'success' => session('success'),
@@ -116,7 +112,6 @@ class ReviewController extends Controller
             'booking_id'  => $validated['booking_id'],
             'rating'      => $validated['rating'],
             'comment'     => $validated['comment'],
-            // No review_date field - using created_at timestamp instead
         ]);
 
         return response()->json(['message' => 'Review saved successfully'], 201);

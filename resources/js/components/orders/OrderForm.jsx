@@ -1,5 +1,4 @@
-// resources/js/components/orders/OrderForm.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -48,6 +47,21 @@ function buildPromoLabel(p, servicesDict) {
   return `${p.name} (${p.type}) — ${action}`;
 }
 
+// Pemetaan session yg diizinkan per status booking
+function allowedSessionsForBookingStatus(statusRaw) {
+  if (!statusRaw) return null; // null = artinya "tanpa filter"
+  const status = String(statusRaw).toLowerCase();
+
+  if (["reserved"].includes(status)) {
+    return new Set(["pre_checkin"]);
+  }
+  if (["checked_in"].includes(status)) {
+    return new Set(["post_checkin", "pre_checkout"]);
+  }
+  // default: tanpa filter
+  return null;
+}
+
 const OrderForm = ({
   data,
   setData,
@@ -73,12 +87,61 @@ const OrderForm = ({
     return acc;
   }, {});
 
-  // === NEW: Booking select (per customer) ===
+  // === Booking select (per customer) ===
   const [customerBookings, setCustomerBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
 
-  // Reset booking_id & fetch bookings ketika customer berubah
+  // Cari booking terpilih & statusnya
+  const selectedBooking = useMemo(() => {
+    if (!data.booking_id) return null;
+    const idNum = Number(data.booking_id);
+    return customerBookings.find((b) => Number(b.id) === idNum) || null;
+  }, [data.booking_id, customerBookings]);
+
+  const allowedSessions = useMemo(() => {
+    return allowedSessionsForBookingStatus(selectedBooking?.status);
+  }, [selectedBooking]);
+
+  // Filter services berdasar allowedSessions
+  const filteredServices = useMemo(() => {
+    if (!Array.isArray(services) || services.length === 0) return [];
+    if (!allowedSessions) return services; // tanpa filter
+    return services.filter((s) => allowedSessions.has(s.offering_session));
+  }, [services, allowedSessions]);
+
+  // Jika service terpilih tidak lagi valid (keluar dari filter), reset baris tsb
+  useEffect(() => {
+    if (!showCreateFields) return;
+    if (!Array.isArray(orderServices) || orderServices.length === 0) return;
+
+    const validIds = new Set(filteredServices.map((s) => String(s.id)));
+    let changed = false;
+    const next = orderServices.map((item) => {
+      if (!item?.id) return item;
+      if (validIds.has(String(item.id))) return item;
+      changed = true;
+      // reset jika tidak valid lagi
+      return { id: "", quantity: 1, details: {} };
+    });
+
+    if (changed) {
+      // sinkronkan ke form state
+      // (pakai updateService per index agar logika parent tetap konsisten)
+      next.forEach((it, idx) => {
+        if (String(orderServices[idx]?.id || "") !== String(it.id || "")) {
+          updateService(idx, "id", it.id);
+        }
+        if ((orderServices[idx]?.quantity ?? 1) !== (it.quantity ?? 1)) {
+          updateService(idx, "quantity", it.quantity);
+        }
+        // reset details juga
+        updateService(idx, "details", it.details);
+      });
+    }
+  }, [filteredServices, orderServices, showCreateFields, updateService]);
+
+  // Reset booking_id & fetch bookings ketika customer berubah (tetap sama)
   useEffect(() => {
     if (!showCreateFields) return;
 
@@ -98,7 +161,7 @@ const OrderForm = ({
         setLoadingBookings(true);
         setBookingsError("");
 
-        // NOTE: sediakan endpoint ini di BE (lihat catatan di bawah)
+        // NOTE: sediakan endpoint ini di BE
         const res = await fetch(`/api/customers/${customerId}/bookings?onlyActive=1`, {
           credentials: "same-origin",
           headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
@@ -205,23 +268,26 @@ const OrderForm = ({
               {!data.customer_id && (
                 <p className="text-xs text-muted-foreground">Pick a customer to choose a booking.</p>
               )}
+              {/* Info kecil tentang filter session */}
             </div>
           </div>
 
-          {/* Services */}
+          {/* Services (dipengaruhi filter offering_session) */}
           <fieldset disabled={!isPending}>
             <div className="space-y-4">
               <div className="grid grid-cols-4 items-start gap-4">
                 <Label className="text-right pt-2">Services *</Label>
                 <div className="col-span-3 space-y-2">
                   {orderServices.map((service, index) => {
-                    const selectedService = services.find(
-                      (s) => s.id === parseInt(service.id)
+                    const selectedService = filteredServices.find(
+                      (s) => String(s.id) === String(service.id)
                     );
-                    const options = getOptionsArray(selectedService);
-                    const isSelectable = selectedService?.type === "selectable";
-                    const isPerUnit = selectedService?.type === "per_unit";
-                    const unitName = selectedService?.unit_name || "";
+                    const options = getOptionsArray(selectedService || servicesDict[service.id]);
+                    const svcType = selectedService?.type || servicesDict[service.id]?.type;
+
+                    const isSelectable = svcType === "selectable";
+                    const isPerUnit = svcType === "per_unit";
+                    const unitName = selectedService?.unit_name || servicesDict[service.id]?.unit_name || "";
 
                     const needPackage = isSelectable && !service?.details?.package;
                     const needWeight =
@@ -257,9 +323,9 @@ const OrderForm = ({
                                 <SelectValue placeholder="Select service" />
                               </SelectTrigger>
                               <SelectContent>
-                                {services.map((s) => (
+                                {filteredServices.map((s) => (
                                   <SelectItem key={s.id} value={s.id.toString()}>
-                                    {s.name}
+                                    {s.name} {/* Bisa tambahkan • (s.offering_session) bila ingin terlihat */}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
