@@ -79,8 +79,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('orders', OrderController::class);
         Route::resource('bookings', BookingController::class);
         Route::resource('rooms', RoomController::class);
-        Route::resource('reports', ReportController::class);
-        Route::resource('reviews', ReviewController::class);
         Route::resource('payments', PaymentController::class);
         Route::resource('promotions', PromotionController::class);
     });
@@ -88,6 +86,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
     Route::middleware(['role:manager,front-office'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::resource('reports', ReportController::class);
+        Route::resource('reviews', ReviewController::class);
         Route::get('/ai/analytics', [AIController::class, 'showPage'])->name('ai.analytics.show');
         Route::post('/ai/generate-analysis', [AIController::class, 'generateAnalysis'])->name('ai.analytics.generate');
     });
