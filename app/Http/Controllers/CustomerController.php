@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Validation\Rule;
 
 class CustomerController extends Controller
 {
@@ -27,9 +28,9 @@ class CustomerController extends Controller
         if ($search && is_string($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('passport_country', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('passport_country', 'like', "%{$search}%");
             });
         }
 
@@ -72,15 +73,16 @@ class CustomerController extends Controller
         // Bentuk payload table + detail (booking history + order history dengan nama service)
         $paginator->getCollection()->transform(function ($c) {
             return [
-                'id'               => $c->id,
-                'name'             => $c->name,
-                'email'            => $c->email,
-                'phone'            => $c->phone,
-                'passport_country' => $c->passport_country,
-                'birth_date'       => $c->birth_date ? $c->birth_date->toDateString() : null,
-                'total_visits'     => $c->total_visits,
-                'last_visit_date'  => $c->last_visit_date ? $c->last_visit_date->toDateString() : null,
-                'created_at'       => $c->created_at ? $c->created_at->toDateTimeString() : null,
+                'id'                 => $c->id,
+                'name'               => $c->name,
+                'email'              => $c->email,
+                'phone'              => $c->phone,
+                'passport_country'   => $c->passport_country,
+                'preferred_language' => $c->preferred_language ?? 'id',
+                'birth_date'         => $c->birth_date ? $c->birth_date->toDateString() : null,
+                'total_visits'       => $c->total_visits,
+                'last_visit_date'    => $c->last_visit_date ? $c->last_visit_date->toDateString() : null,
+                'created_at'         => $c->created_at ? $c->created_at->toDateTimeString() : null,
 
                 'membership' => $c->membership ? [
                     'membership_type'     => $c->membership->membership_type,
@@ -108,17 +110,15 @@ class CustomerController extends Controller
                             ? (float) $o->grand_total
                             : (!is_null($o->total_price) ? (float) $o->total_price : 0.0);
 
-                        // items: ringkas line berdasarkan pivot
                         $items = $o->services->map(function ($s) {
                             $qty = (float) ($s->pivot->quantity ?? 0);
                             $ppu = (float) ($s->pivot->price_per_unit ?? 0);
                             return [
-                                'service_id'     => $s->id,
-                                'name'           => $s->name,                // <— PENTING: nama service
-                                'quantity'       => $qty,
-                                'price_per_unit' => $ppu,
-                                'line_total'     => $qty * $ppu,
-                                // bisa tampilkan offering_session jika ingin
+                                'service_id'       => $s->id,
+                                'name'             => $s->name,
+                                'quantity'         => $qty,
+                                'price_per_unit'   => $ppu,
+                                'line_total'       => $qty * $ppu,
                                 'offering_session' => $s->offering_session,
                             ];
                         })->values()->all();
@@ -130,7 +130,6 @@ class CustomerController extends Controller
                             'payment_preference' => $o->payment_preference,
                             'amount'             => $amount,
                             'items'              => $items,
-                            // Untuk tampilan list ringkas, sediakan juga array nama:
                             'service_names'      => array_values(array_map(fn($it) => $it['name'], $items)),
                         ];
                     })->values()->all(),
@@ -140,14 +139,14 @@ class CustomerController extends Controller
         return Inertia::render('Customers', [
             'customers' => $paginator,
             'filters'   => [
-                'search'          => $search ?: '',
-                'passport_country'=> $passportCountry ?: '',
-                'membership_type' => $membershipType ?: '',
-                'last_visit_from' => $lastVisitFrom ?: '',
-                'last_visit_to'   => $lastVisitTo ?: '',
-                'per_page'        => $perPage,
-                'sort_by'         => $sortBy,
-                'sort_direction'  => $sortDirection,
+                'search'           => $request->input('search', ''),
+                'passport_country' => $request->input('passport_country', ''),
+                'membership_type'  => $request->input('membership_type', ''),
+                'last_visit_from'  => $request->input('last_visit_from', ''),
+                'last_visit_to'    => $request->input('last_visit_to', ''),
+                'per_page'         => $perPage,
+                'sort_by'          => $sortBy,
+                'sort_direction'   => $sortDirection,
             ],
         ]);
     }
@@ -159,15 +158,16 @@ class CustomerController extends Controller
 
         return Inertia::render('Customers/Show', [
             'customer' => [
-                'id'               => $customer->id,
-                'name'             => $customer->name,
-                'email'            => $customer->email,
-                'phone'            => $customer->phone,
-                'passport_country' => $customer->passport_country,
-                'birth_date'       => $customer->birth_date ? $customer->birth_date->toDateString() : null,
-                'total_visits'     => $customer->total_visits,
-                'last_visit_date'  => $customer->last_visit_date ? $customer->last_visit_date->toDateString() : null,
-                'created_at'       => $customer->created_at ? $customer->created_at->toDateTimeString() : null,
+                'id'                 => $customer->id,
+                'name'               => $customer->name,
+                'email'              => $customer->email,
+                'phone'              => $customer->phone,
+                'passport_country'   => $customer->passport_country,
+                'preferred_language' => $customer->preferred_language ?? 'id',
+                'birth_date'         => $customer->birth_date ? $customer->birth_date->toDateString() : null,
+                'total_visits'       => $customer->total_visits,
+                'last_visit_date'    => $customer->last_visit_date ? $customer->last_visit_date->toDateString() : null,
+                'created_at'         => $customer->created_at ? $customer->created_at->toDateTimeString() : null,
 
                 'membership' => $customer->membership ? [
                     'membership_type'     => $customer->membership->membership_type,
@@ -189,7 +189,7 @@ class CustomerController extends Controller
                                 $ppu = (float) ($s->pivot->price_per_unit ?? 0);
                                 return [
                                     'service_id'     => $s->id,
-                                    'name'           => $s->name, // <— nama service
+                                    'name'           => $s->name,
                                     'quantity'       => $qty,
                                     'price_per_unit' => $ppu,
                                     'line_total'     => $qty * $ppu,
@@ -214,13 +214,18 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'             => 'required|string|max:255',
-            'email'            => 'nullable|email|max:255',
-            'phone'            => 'nullable|string|max:20',
-            'passport_country' => 'nullable|string|max:100',
-            'birth_date'       => 'nullable|date',
-            // notes dihapus
+            'name'               => 'required|string|max:255',
+            'email'              => 'nullable|email|max:255',
+            'phone'              => ['nullable', 'string', 'max:255', 'unique:customers,phone'],
+            'passport_country'   => 'nullable|string|max:100',
+            'birth_date'         => 'nullable|date',
+            'preferred_language' => ['sometimes', 'in:id,en'], // biarkan default DB 'id' kalau tidak dikirim
         ]);
+
+        // Jangan menimpa default DB 'id' dengan string kosong
+        if (array_key_exists('preferred_language', $data) && $data['preferred_language'] === '') {
+            unset($data['preferred_language']);
+        }
 
         $data['total_visits'] = 0;
 
@@ -240,13 +245,23 @@ class CustomerController extends Controller
     public function update(Request $request, Customer $customer)
     {
         $data = $request->validate([
-            'name'             => 'required|string|max:255',
-            'email'            => 'nullable|email|max:255',
-            'phone'            => 'nullable|string|max:20',
-            'passport_country' => 'nullable|string|max:100',
-            'birth_date'       => 'nullable|date',
-            // notes dihapus
+            'name'               => 'required|string|max:255',
+            'email'              => 'nullable|email|max:255',
+            'phone'              => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('customers', 'phone')->ignore($customer->id),
+            ],
+            'passport_country'   => 'nullable|string|max:100',
+            'birth_date'         => 'nullable|date',
+            'preferred_language' => ['sometimes', 'in:id,en'], // optional update
         ]);
+
+        // Jika dikirim kosong, abaikan agar nilai existing tidak berubah
+        if (array_key_exists('preferred_language', $data) && $data['preferred_language'] === '') {
+            unset($data['preferred_language']);
+        }
 
         $customer->update($data);
 

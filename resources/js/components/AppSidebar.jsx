@@ -3,18 +3,16 @@ import {
     User,
     HandPlatter,
     ClipboardList,
-    ChartLine,
+    BarChart3Icon,
     Sigma,
     Book,
-    DoorClosed,
     DoorOpen,
-    Settings,
-    ChevronUp,
-    BarChart3Icon,
     CreditCard,
     TicketPercent,
     UserStar,
+    ChevronUp,
 } from "lucide-react";
+
 import useAuth from "@/hooks/useAuth";
 import {
     Sidebar,
@@ -28,17 +26,18 @@ import {
     SidebarFooter,
     SidebarHeader,
 } from "@/components/ui/sidebar";
+
 import {
     DropdownMenu,
     DropdownMenuTrigger,
     DropdownMenuContent,
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, usePage } from "@inertiajs/react";
-import Logo from "@/assets/images/Logo.jpg";
 
-// Menu items dikelompokkan berdasarkan fungsinya
+// ===== menu config (unchanged) =====
 const menuGroups = [
     {
         title: "Main",
@@ -129,35 +128,70 @@ const menuGroups = [
 ];
 
 export function AppSidebar() {
-    const { url } = usePage();
+    const { url, props } = usePage();
     const { hasAnyRole } = useAuth();
-    const { props } = usePage();
-    const role = props.auth.user.role;
-    const userRole = role.charAt(0).toUpperCase() + role.slice(1);
+
+    // --- auth info ---
+    const role = props?.auth?.user?.role || "";
+    const userRole =
+        role.length > 0
+            ? role.charAt(0).toUpperCase() + role.slice(1)
+            : "";
+
+    // --- branding / site info from AppServiceProvider ---
+    // props.site bentuknya:
+    // {
+    //   name: "Wavin Hotel",
+    //   tagline: "The Definition of Luxury.",
+    //   logo: "http://localhost:8000/storage/logos/xxx.jpg",
+    //   ...
+    // }
+    const site = props?.site || {};
+
+    const hotelName = site.name || "CRM Hotel";
+    const hotelTagline = site.tagline || userRole || "Staff Portal";
+    const hotelLogoUrl = site.logo || null; // absolute URL sudah dirakit di AppServiceProvider
 
     // Extract the base path without query parameters
     const basePath = url.split("?")[0];
 
     return (
         <Sidebar className="bg-background w-64 flex-shrink-0">
+            {/* ===== HEADER BRAND BLOCK ===== */}
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
                             <Link href="/">
-                                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary">
-                                    <img
-                                        src={Logo}
-                                        alt=""
-                                        className="w-6 h-6"
-                                    />
+                                {/* Logo box */}
+                                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary overflow-hidden">
+                                    {hotelLogoUrl ? (
+                                        <img
+                                            src={hotelLogoUrl}
+                                            alt="Logo"
+                                            className="w-6 h-6 object-contain"
+                                            onError={(e) => {
+                                                // kalau gagal load gambar, hide img dan fallback ke inisial
+                                                e.currentTarget.style.display =
+                                                    "none";
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="w-6 h-6 rounded bg-slate-200 text-[10px] flex items-center justify-center font-semibold text-slate-600">
+                                            {hotelName
+                                                .slice(0, 2)
+                                                .toUpperCase()}
+                                        </div>
+                                    )}
                                 </div>
+
+                                {/* Text brand */}
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-semibold">
-                                        CRM Hotel
+                                        {hotelName}
                                     </span>
-                                    <span className="truncate text-xs">
-                                        {userRole}
+                                    <span className="truncate text-xs text-muted-foreground">
+                                        {hotelTagline}
                                     </span>
                                 </div>
                             </Link>
@@ -166,34 +200,36 @@ export function AppSidebar() {
                 </SidebarMenu>
             </SidebarHeader>
 
+            {/* ===== MENUS ===== */}
             <SidebarContent>
-                {/* Mapping melalui setiap grup menu untuk merender section */}
                 {menuGroups.map((group) => {
-                    // 1. Filter item-item yang diizinkan untuk user saat ini
+                    // role gating
                     const permittedItems = group.items.filter((item) => {
                         if (item.allowedRoles) {
                             return hasAnyRole(item.allowedRoles);
                         }
-                        // Jika tidak ada allowedRoles, anggap semua user bisa melihat
                         return true;
                     });
 
-                    // 2. Jika tidak ada item yang diizinkan, jangan render grup sama sekali
                     if (permittedItems.length === 0) {
                         return null;
                     }
 
-                    // 3. Jika ada item yang diizinkan, render grup dengan item-item tersebut
                     return (
                         <SidebarGroup key={group.title}>
-                            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+                            <SidebarGroupLabel>
+                                {group.title}
+                            </SidebarGroupLabel>
                             <SidebarGroupContent>
                                 <SidebarMenu>
                                     {permittedItems.map((item) => {
-                                        const active = basePath === item.url;
+                                        const active =
+                                            basePath === item.url;
 
                                         return (
-                                            <SidebarMenuItem key={item.title}>
+                                            <SidebarMenuItem
+                                                key={item.title}
+                                            >
                                                 <SidebarMenuButton
                                                     asChild
                                                     className={
@@ -204,7 +240,9 @@ export function AppSidebar() {
                                                 >
                                                     <Link href={item.url}>
                                                         <item.icon className="h-4 w-4" />
-                                                        <span>{item.title}</span>
+                                                        <span>
+                                                            {item.title}
+                                                        </span>
                                                     </Link>
                                                 </SidebarMenuButton>
                                             </SidebarMenuItem>
@@ -217,6 +255,7 @@ export function AppSidebar() {
                 })}
             </SidebarContent>
 
+            {/* ===== FOOTER / USER DROPDOWN ===== */}
             <SidebarFooter>
                 <SidebarMenu>
                     <SidebarMenuItem>
@@ -226,32 +265,43 @@ export function AppSidebar() {
                                     size="lg"
                                     className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                                 >
-                                    {/* Avatar */}
+                                    {/* Avatar user */}
                                     <Avatar className="h-8 w-8 rounded-lg">
-                                        {/* Ganti dengan URL avatar jika ada */}
                                         <AvatarImage
-                                            src={props.auth.user.avatar_url}
-                                            alt={props.auth.user.name}
+                                            src={
+                                                props.auth.user
+                                                    ?.avatar_url
+                                            }
+                                            alt={
+                                                props.auth.user
+                                                    ?.name
+                                            }
                                         />
                                         <AvatarFallback className="rounded-lg">
-                                            {props.auth.user.name
-                                                .charAt(0)
-                                                .toUpperCase()}
+                                            {props.auth.user?.name
+                                                ?.charAt(0)
+                                                ?.toUpperCase()}
                                         </AvatarFallback>
                                     </Avatar>
-                                    {/* Info User */}
+
+                                    {/* Info user */}
                                     <div className="grid flex-1 text-left text-sm leading-tight">
                                         <span className="truncate font-semibold">
-                                            {props.auth.user.name}
+                                            {
+                                                props.auth.user
+                                                    ?.name
+                                            }
                                         </span>
-                                        <span className="truncate text-xs">
+                                        <span className="truncate text-xs text-muted-foreground">
                                             {userRole}
                                         </span>
                                     </div>
-                                    {/* Icon */}
+
+                                    {/* caret icon */}
                                     <ChevronUp className="ml-auto transition-transform duration-200 group-data-[state=open]/dropdown-menu:rotate-180" />
                                 </SidebarMenuButton>
                             </DropdownMenuTrigger>
+
                             <DropdownMenuContent
                                 side="top"
                                 className="w-[--radix-popper-anchor-width] min-w-56 rounded-lg"
@@ -262,10 +312,10 @@ export function AppSidebar() {
                                         href="/profile"
                                         className="cursor-pointer"
                                     >
-                                        {/* Anda bisa tambahkan icon di sini jika mau */}
                                         Profile
                                     </Link>
                                 </DropdownMenuItem>
+
                                 <DropdownMenuItem asChild>
                                     <Link
                                         href="/settings"
@@ -274,6 +324,7 @@ export function AppSidebar() {
                                         Settings
                                     </Link>
                                 </DropdownMenuItem>
+
                                 <DropdownMenuItem asChild>
                                     <Link
                                         href="/logout"

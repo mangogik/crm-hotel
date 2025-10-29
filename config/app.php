@@ -53,6 +53,7 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
+    'dashboard_asset_base' => env('APP_DASHBOARD_ASSET_BASE', env('APP_URL')),
 
     /*
     |--------------------------------------------------------------------------

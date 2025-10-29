@@ -4,8 +4,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
-import { Percent, Gift } from "lucide-react";
+import { Percent } from "lucide-react";
 
+/* ====== Checklist kecil ====== */
 const ServiceCheckList = ({ services, selected, onToggle }) => (
   <div className="max-h-44 overflow-y-auto border rounded-md p-2 space-y-1 bg-background">
     {services.length ? (
@@ -31,16 +32,21 @@ const ServiceCheckList = ({ services, selected, onToggle }) => (
   </div>
 );
 
+/* ====== Form ====== */
 const PromotionForm = ({ form, services, toggleServiceId }) => {
   const { data, setData } = form;
-
-  // actionType explicit agar UI selalu konsisten
   const [actionType, setActionType] = useState("percent");
 
+  // Set default actionType & active
   useEffect(() => {
     if (data.free_service_id) setActionType("free_service");
     else if (data.discount_amount) setActionType("amount");
     else setActionType("percent");
+
+    // default active = true bila kosong/undefined
+    if (typeof data.active === "undefined" || data.active === null) {
+      setData("active", true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -73,13 +79,12 @@ const PromotionForm = ({ form, services, toggleServiceId }) => {
 
   const onToggleService = (id) => toggleServiceId(form, id);
 
-  // membership select harus non-empty saat type=membership
   const membershipValue =
     data.type === "membership" ? (data.membership_tier || "silver") : (data.membership_tier || "");
 
   return (
     <div className="grid gap-4 py-3">
-      {/* Row: Name (full width) */}
+      {/* Row: Name (full) */}
       <div className="grid gap-1">
         <Label>Name *</Label>
         <Input
@@ -89,8 +94,8 @@ const PromotionForm = ({ form, services, toggleServiceId }) => {
         />
       </div>
 
-      {/* Row: Type + Param (horizontal, gap kecil) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 items-end">
+      {/* Row: Type + Active */}
+      <div className="grid grid-cols-1 md:grid-cols-2 items-end gap-3">
         <div className="grid gap-1">
           <Label>Type *</Label>
           <Select value={data.type} onValueChange={(v) => setData("type", v)}>
@@ -105,57 +110,63 @@ const PromotionForm = ({ form, services, toggleServiceId }) => {
           </Select>
         </div>
 
-        {/* Param by Type (sejajar dengan Type) */}
-        {data.type === "birthday" && (
-          <div className="grid gap-1">
-            <Label>Days Before</Label>
-            <Input
-              type="number"
-              min="0"
-              value={data.birthday_days_before ?? 3}
-              onChange={(e) =>
-                setData(
-                  "birthday_days_before",
-                  Math.max(0, parseInt(e.target.value || "0", 10))
-                )
-              }
-              placeholder="Contoh: 3"
-            />
-          </div>
-        )}
-        {data.type === "event" && (
-          <div className="grid gap-1">
-            <Label>Event Code</Label>
-            <Input
-              value={data.event_code || ""}
-              onChange={(e) => setData("event_code", e.target.value)}
-              placeholder="e.g. NEWYEAR"
-            />
-          </div>
-        )}
-        {data.type === "membership" && (
-          <div className="grid gap-1">
-            <Label>Membership Tier</Label>
-            <Select
-              // bila kosong, tampilkan placeholder (bukan empty string di item)
-              value={membershipValue || "silver"}
-              onValueChange={(v) => setData("membership_tier", v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select tier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="silver">Silver</SelectItem>
-                <SelectItem value="gold">Gold</SelectItem>
-                <SelectItem value="platinum">Platinum</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <div className="grid gap-1">
+          <Label>Active *</Label>
+          <Select
+            value={String(data.active ? "1" : "0")}
+            onValueChange={(v) => setData("active", v === "1")}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Active</SelectItem>
+              <SelectItem value="0">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Row: Action + Field (horizontal, gap kecil) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 items-end">
+      {/* Params by Type */}
+      {data.type === "birthday" && (
+        <div className="grid gap-1">
+          <Label>Days Before</Label>
+          <Input
+            type="number"
+            min="0"
+            value={data.birthday_days_before ?? 3}
+            onChange={(e) =>
+              setData(
+                "birthday_days_before",
+                Math.max(0, parseInt(e.target.value || "0", 10))
+              )
+            }
+            placeholder="Contoh: 3"
+          />
+        </div>
+      )}
+
+      {data.type === "membership" && (
+        <div className="grid gap-1">
+          <Label>Membership Tier</Label>
+          <Select
+            value={membershipValue || "silver"}
+            onValueChange={(v) => setData("membership_tier", v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select tier" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="silver">Silver</SelectItem>
+              <SelectItem value="gold">Gold</SelectItem>
+              <SelectItem value="platinum">Platinum</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Row: Action + Field */}
+      <div className="grid grid-cols-1 md:grid-cols-2 items-end gap-3">
         <div className="grid gap-1">
           <Label>Action *</Label>
           <Select value={actionType} onValueChange={changeAction}>
@@ -261,7 +272,7 @@ const PromotionForm = ({ form, services, toggleServiceId }) => {
         <ServiceCheckList
           services={services}
           selected={data.service_ids || []}
-          onToggle={onToggleService}
+          onToggle={(id) => toggleServiceId(form, id)}
         />
         <p className="text-xs text-muted-foreground">
           {actionType === "free_service"

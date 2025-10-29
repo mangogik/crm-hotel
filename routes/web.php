@@ -15,6 +15,11 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RoomController;
+use App\Http\Controllers\RoomTypeController;
+use App\Http\Controllers\SettingController;
+
+// !!! PENTING: Menambahkan 'use Mail' untuk rute tes !!!
+use Illuminate\Support\Facades\Mail;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +38,36 @@ Route::get('/', function () {
 
 Route::get('/check-ai-models', [AIController::class, 'listModels']);
 
+// =====================================================================
+// == RUTE TES EMAIL ==
+// =====================================================================
+Route::get('/test-email-server/{email}', function ($email) {
+    try {
+        // Kita akan membangun pesan teksnya di sini
+        $pesan = "Halo!\n\n"
+            . "Ini adalah email tes otomatis dari aplikasi Anda.\n\n"
+            . "=============================================\n"
+            . "   KONEKSI SMTP BERHASIL DIKONFIGURASI   \n"
+            . "=============================================\n\n"
+            . "Jika Anda menerima email ini, itu berarti gg gaming:\n"
+            . "Penerima Tes: " . $email . "\n"
+            . "Waktu Tes: " . now()->toDateTimeString() . " (Waktu Server)\n\n"
+            . "Salam,\n"
+            . "Developer Yogix Gahol mantap gacor anjay";
+
+        Mail::raw($pesan, function ($message) use ($email) {
+            $message->to($email)
+                ->subject('✅ [TES BERHASIL] - Email terkirim!');
+        });
+
+        return 'Sukses! Email tes yang lebih menarik telah dikirim ke ' . $email;
+    } catch (\Exception $e) {
+        return 'Gagal: ' . $e->getMessage();
+    }
+});
+// =====================================================================
+
+
 /*
 |--------------------------------------------------------------------------
 | Rute API / Bot (tanpa CSRF)
@@ -42,6 +77,7 @@ Route::prefix('api')->middleware('n8n')->group(function () {
     Route::post('/orders/create-from-bot', [OrderController::class, 'createFromBot']);
     Route::post('/reviews/create-from-bot', [ReviewController::class, 'storeFromBot']);
     Route::post('/interactions', [InteractionController::class, 'store']);
+    Route::get('/booking/active-by-phone/{phone}', [BookingController::class, 'getActiveBookingByPhone']);
 });
 
 
@@ -63,6 +99,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/customers/{customer}/bookings', [BookingController::class, 'byCustomer'])->name('customers.bookings');
         Route::get('/promotions/check', [PromotionController::class, 'checkEligibility'])->name('promotions.check');
         Route::post('/promotions/check-eligibility', [PromotionController::class, 'checkEligibility'])->name('promotions.checkEligibility');
+        Route::get('/services/{service}/questions', [ServiceController::class, 'getQuestions']);
+        Route::get('/services/{service}/images', [ServiceController::class, 'getImages'])
+            ->name('services.images');
     });
 
     // --- HANYA BISA DIAKSES MANAGER ---
@@ -86,10 +125,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
     Route::middleware(['role:manager,front-office'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::post('/room-types', [RoomTypeController::class, 'store'])->name('room-types.store');
+        Route::put('/room-types/{roomType}', [RoomTypeController::class, 'update'])->name('room-types.update');
+        Route::delete('/room-types/{roomType}', [RoomTypeController::class, 'destroy'])->name('room-types.destroy');
         Route::resource('reports', ReportController::class);
         Route::resource('reviews', ReviewController::class);
         Route::get('/ai/analytics', [AIController::class, 'showPage'])->name('ai.analytics.show');
         Route::post('/ai/generate-analysis', [AIController::class, 'generateAnalysis'])->name('ai.analytics.generate');
+        Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+        Route::post('/settings', [SettingController::class, 'update'])->name('settings.update');
     });
 });
 

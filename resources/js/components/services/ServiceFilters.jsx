@@ -23,13 +23,14 @@ const ServiceFilters = ({
   filterOptions,
 }) => {
   // Fallback kalau props belum tersedia
-  const typeOptions = filterOptions?.types ?? ["fixed", "per_unit", "selectable", "free"];
+  const typeOptions = filterOptions?.types ?? ["fixed", "per_unit", "selectable", "multiple_options", "free"];
   const fulfillmentOptions = filterOptions?.fulfillment_types ?? ["direct", "staff_assisted"];
   const sessionOptions = filterOptions?.offering_sessions ?? ["pre_checkin", "post_checkin", "pre_checkout"];
 
   const humanizeType = (t) => {
     if (t === "per_unit") return "Per Unit";
     if (t === "selectable") return "Selectable";
+    if (t === "multiple_options") return "Multiple Options";
     if (t === "free") return "Free";
     return "Fixed Price";
   };

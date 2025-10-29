@@ -1,4 +1,3 @@
-// resources/js/Pages/Orders.jsx
 import { useState, useEffect } from "react";
 import { usePage, useForm, router } from "@inertiajs/react";
 import { Button } from "../components/ui/button";
@@ -15,7 +14,6 @@ import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
 import AuthenticatedLayout from "../Layouts/AuthenticatedLayout";
 
-// Import components
 import OrderHeader from "../components/orders/OrderHeader";
 import OrderFilters from "../components/orders/OrderFilters";
 import OrdersTable from "../components/orders/OrdersTable";
@@ -66,24 +64,33 @@ export default function Orders() {
         { id: "", quantity: 1, details: {} },
     ]);
 
-    // promotions (client-side)
-    const [eligiblePromos, setEligiblePromos] = useState([]); // [{id, name, ...}]
+    // promotions
+    const [eligiblePromos, setEligiblePromos] = useState([]);
     const [checkingPromo, setCheckingPromo] = useState(false);
 
     const isPending = currentOrder?.status === "pending";
 
-    const { data, setData, post, put, processing, errors, reset, clearErrors } =
-        useForm({
-            customer_id: "",
-            services: [{ id: "", quantity: 1, details: {} }],
-            status: "pending",
-            payment_preference: "cash",
+    const {
+        data,
+        setData,
+        post,
+        put,
+        processing,
+        errors,
+        reset,
+        clearErrors,
+    } = useForm({
+        customer_id: "",
+        services: [{ id: "", quantity: 1, details: {} }],
+        status: "pending",
+        payment_preference: "cash",
 
-            // for backend
-            promotion_id: "",
-            event_code: "",
-            booking_id: "",
-        });
+        promotion_id: "",
+        event_code: "",
+        booking_id: "",
+
+        order_notes: "", // <-- NEW: this will be sent to backend as 'order_notes'
+    });
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -135,18 +142,26 @@ export default function Orders() {
     const openCreateModal = () => {
         reset();
         clearErrors();
+
+        // After reset(), we still want our default shape:
         setOrderServices([{ id: "", quantity: 1, details: {} }]);
+
+        // Make sure notes start empty when creating
+        setData("order_notes", ""); // <-- NEW ensure blank
+
         setEligiblePromos([]);
         setData("status", "pending");
         setIsCreateModalOpen(true);
     };
 
     const openEditModal = (order) => {
+        // Prepare services for edit view
         const servicesData = order.services.map((service) => ({
             id: service.id,
             quantity: service.pivot.quantity,
             details: JSON.parse(service.pivot.details || "{}"),
         }));
+
         setData({
             customer_id: order.customer_id,
             services: servicesData,
@@ -155,7 +170,11 @@ export default function Orders() {
             promotion_id: "",
             event_code: "",
             booking_id: order.booking_id || "",
+
+            // preload existing notes from DB into order_notes
+            order_notes: order.notes || "", // <-- NEW
         });
+
         setOrderServices(servicesData);
         clearErrors();
         setEligiblePromos([]); // not used on edit
@@ -180,6 +199,9 @@ export default function Orders() {
 
     const handleUpdate = (e) => {
         e.preventDefault();
+        // NOTE: In your backend, update() does accept order_notes
+        // BUT your edit modal UI does not expose notes textarea (only status & payment)
+        // So this will just send the current data.order_notes (preloaded).
         put(route("orders.update", currentOrder.id), {
             onSuccess: () => {
                 setIsEditModalOpen(false);
@@ -305,7 +327,6 @@ export default function Orders() {
         serviceIds,
         eventCode,
     } = {}) {
-        // Guard: only fetch when inputs are valid
         if (
             !customerId ||
             !Array.isArray(serviceIds) ||
@@ -444,50 +465,54 @@ export default function Orders() {
                     }
                 }}
             >
-                <DialogContent className="sm:max-w-[760px]">
-                    <DialogHeader>
-                        <DialogTitle>Create New Order</DialogTitle>
-                        <DialogDescription>
-                            Add a new customer order
-                        </DialogDescription>
-                    </DialogHeader>
+                <DialogContent className="w-[92vw] sm:w-[88vw] md:w-[720px] lg:w-[900px] xl:w-[1040px] sm:max-w-none overflow-y-auto max-h-[90vh] md:overflow-visible md:max-h-none [scrollbar-gutter:stable] p-0">
+                    <div className="p-5 sm:p-6">
+                        <DialogHeader>
+                            <DialogTitle>Create New Order</DialogTitle>
+                            <DialogDescription>
+                                Add a new customer order
+                            </DialogDescription>
+                        </DialogHeader>
 
-                    <form onSubmit={handleCreate}>
-                        <OrderForm
-                            data={data}
-                            setData={setData}
-                            errors={errors}
-                            customers={customers}
-                            services={services}
-                            orderServices={orderServices}
-                            updateService={updateService}
-                            updateServiceDetail={updateServiceDetail}
-                            addService={addService}
-                            removeService={removeService}
-                            // promo props
-                            eligiblePromos={eligiblePromos}
-                            checkingPromo={checkingPromo}
-                        />
+                        <form onSubmit={handleCreate}>
+                            <OrderForm
+                                data={data}
+                                setData={setData}
+                                errors={errors}
+                                customers={customers}
+                                services={services}
+                                orderServices={orderServices}
+                                updateService={updateService}
+                                updateServiceDetail={updateServiceDetail}
+                                addService={addService}
+                                removeService={removeService}
+                                eligiblePromos={eligiblePromos}
+                                checkingPromo={checkingPromo}
+                            />
 
-                        <DialogFooter>
-                            <Button type="submit" disabled={processing}>
-                                Create Order
-                            </Button>
-                        </DialogFooter>
-                    </form>
+                            <DialogFooter className="mt-4 pt-4 border-t bg-background sticky bottom-0 md:static md:bg-transparent md:border-0">
+                                <Button type="submit" disabled={processing}>
+                                    Create Order
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </div>
                 </DialogContent>
             </Dialog>
 
             {/* Edit Order Modal */}
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="sm:max-w-[700px]">
-                    <DialogHeader>
-                        <DialogTitle>Edit Order Status</DialogTitle>
-                        <DialogDescription>
+                <DialogContent className="w-[92vw] sm:w-[540px] md:w-[520px] lg:w-[560px] xl:w-[600px] sm:max-w-none p-4 md:p-5 overflow-visible">
+                    <DialogHeader className="space-y-1">
+                        <DialogTitle className="text-base">
+                            Edit Order Status
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
                             Only status and payment method can be changed.
                         </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleUpdate}>
+
+                    <form onSubmit={handleUpdate} className="mt-2">
                         <OrderForm
                             data={data}
                             setData={setData}
@@ -501,11 +526,16 @@ export default function Orders() {
                             removeService={removeService}
                             isPending={isPending}
                             isStatusUpdateOnly={true}
-                            eligiblePromos={[]} // not used in edit
-                            checkingPromo={false} // not used in edit
+                            eligiblePromos={[]}
+                            checkingPromo={false}
                         />
-                        <DialogFooter>
-                            <Button type="submit" disabled={processing}>
+
+                        <DialogFooter className="mt-4">
+                            <Button
+                                type="submit"
+                                size="sm"
+                                disabled={processing}
+                            >
                                 Update Order
                             </Button>
                         </DialogFooter>

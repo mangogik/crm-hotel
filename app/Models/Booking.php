@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Booking extends Model
 {
@@ -13,14 +14,22 @@ class Booking extends Model
         'checkout_at',
         'status',
         'notes',
-        'source'
+        'source',
     ];
 
     protected $casts = [
-        'checkin_at' => 'datetime',
-        'checkout_at' => 'datetime'
+        'checkin_at'  => 'datetime',
+        'checkout_at' => 'datetime',
     ];
 
+    /**
+     * Agar field virtual `room_label` ikut tampil di array/JSON.
+     */
+    protected $appends = ['room_label'];
+
+    // -----------------
+    // Relations
+    // -----------------
     public function customer()
     {
         return $this->belongsTo(Customer::class);
@@ -50,5 +59,55 @@ class Booking extends Model
     {
         return $this->hasMany(Reminder::class, 'target_id')
             ->where('target_type', 'booking');
+    }
+
+    // -----------------
+    // Accessors
+    // -----------------
+
+    /**
+     * Accessor ringkas untuk label kamar, otomatis load relasi 'room'
+     * jika belum tersedia.
+     *
+     * Contoh output: "Room 101 (Standard)"
+     */
+    public function getRoomLabelAttribute(): ?string
+    {
+        // Pastikan relasi room tersedia (di-load hanya jika belum)
+        if (!$this->relationLoaded('room') && $this->room_id) {
+            $this->loadMissing('room:id,room_number,room_type');
+        }
+
+        if (!$this->room) {
+            return null;
+        }
+
+        $label = 'Room ' . $this->room->room_number;
+        if (!empty($this->room->room_type)) {
+            $label .= ' (' . $this->room->room_type . ')';
+        }
+
+        return $label;
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($booking) {
+            if (empty($booking->access_token)) {
+                $booking->access_token = Str::uuid()->toString();
+            }
+        });
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function ($booking) {
+            // Jika access_token belum ada, buat yang baru.
+            if (empty($booking->access_token)) {
+                $booking->access_token = Str::uuid()->toString();
+            }
+        });
     }
 }

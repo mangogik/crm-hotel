@@ -1,6 +1,5 @@
 <?php
 
-// app/Models/Customer.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -15,12 +14,14 @@ class Customer extends Model
         'total_visits',
         'last_visit_date',
         'birth_date',
-        'notes'
+        'notes',
+        'preferred_language',
     ];
 
     protected $casts = [
-        'birth_date' => 'date',
-        'last_visit_date' => 'date'
+        'birth_date'       => 'date',
+        'last_visit_date'  => 'date',
+        'preferred_language' => 'string',
     ];
 
     protected $attributes = [
@@ -63,11 +64,10 @@ class Customer extends Model
         $this->last_visit_date = $checkinDate;
         $this->save();
 
-        // Update membership jika ada
         if ($this->membership) {
             $membership = $this->membership;
             $membership->total_bookings += 1;
-            
+
             if ($membership->total_bookings >= 10) {
                 $membership->membership_type = 'platinum';
                 $membership->discount_percentage = 20.00;
@@ -78,7 +78,7 @@ class Customer extends Model
                 $membership->membership_type = 'silver';
                 $membership->discount_percentage = 10.00;
             }
-            
+
             $membership->save();
         }
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Room;
+use App\Models\RoomType;
 use App\Services\RoomStatusService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,32 +14,51 @@ class RoomController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Room::query();
+        // Eager load roomType dengan kolom lengkap yang dibutuhkan di UI
+        $query = Room::query()->with(['roomType:id,name,capacity,price_per_night']);
 
-
+        // Search: room_number atau nama room type
         $query->when($request->input('search'), function ($q, $search) {
             $q->where('room_number', 'like', "%{$search}%")
-                ->orWhere('room_type', 'like', "%{$search}%");
+              ->orWhereHas('roomType', function ($qr) use ($search) {
+                  $qr->where('name', 'like', "%{$search}%");
+              });
         });
 
+        // Filter status
         $query->when($request->input('status'), function ($q, $status) {
             $q->where('status', $status);
         });
 
-        $query->when($request->input('room_type'), function ($q, $room_type) {
-            $q->where('room_type', $room_type);
+        // Filter by room_type_id
+        $query->when($request->input('room_type_id'), function ($q, $roomTypeId) {
+            $q->where('room_type_id', $roomTypeId);
         });
 
-
+        // Sorting
         $sortBy = $request->input('sort_by', 'room_number');
         $sortDirection = $request->input('sort_direction', 'asc');
-        $query->orderBy($sortBy, $sortDirection);
+
+        if ($sortBy === 'room_type') {
+            // Urutkan berdasarkan nama tipe (sesuaikan alias agar tidak bentrok)
+            $query->leftJoin('room_types', 'room_types.id', '=', 'rooms.room_type_id')
+                  ->select('rooms.*', 'room_types.name as _room_type_name')
+                  ->orderBy('_room_type_name', $sortDirection);
+        } else {
+            // Kolom lain langsung dari rooms
+            $query->orderBy($sortBy, $sortDirection);
+        }
 
         $rooms = $query->paginate(10)->withQueryString();
 
+        // Daftar tipe untuk filter/form (lengkap agar konsisten UI)
+        $roomTypes = RoomType::orderBy('name')
+            ->get(['id', 'name', 'capacity', 'price_per_night']);
+
         return Inertia::render('Rooms', [
             'rooms' => $rooms,
-            'filters' => $request->only(['search', 'status', 'room_type', 'sort_by', 'sort_direction']),
+            'roomTypes' => $roomTypes,
+            'filters' => $request->only(['search', 'status', 'room_type_id', 'sort_by', 'sort_direction']),
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error'),
@@ -48,132 +68,118 @@ class RoomController extends Controller
 
     public function store(Request $request, RoomStatusService $roomSvc)
     {
-        // Check if we're creating a range of rooms
-        if ($request->input('is_range')) {
+        // Bulk create?
+        if ($request->boolean('is_range')) {
             return $this->storeRoomRange($request, $roomSvc);
         }
-        
-        // Original single room creation logic
+
         $data = $request->validate([
-            'room_number' => 'required|string|max:255|unique:rooms',
-            'room_type' => 'required|string|max:255',
-            'capacity' => 'required|integer|min:1',
-            'price_per_night' => 'required|numeric|min:0',
-            'status' => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
+            'room_number'  => 'required|string|max:255|unique:rooms',
+            'room_type_id' => 'required|exists:room_types,id',
+            'status'       => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
         ]);
 
-        // Paksa status awal: maintenance => maintenance, lainnya => available
         $status = ($data['status'] ?? 'available') === 'maintenance' ? 'maintenance' : 'available';
-        $room = Room::create(array_merge($data, ['status' => $status]));
 
-        // Kalau bukan maintenance, pastikan konsisten (akan jadi available)
+        $room = Room::create([
+            'room_number'  => $data['room_number'],
+            'room_type_id' => $data['room_type_id'],
+            'status'       => $status,
+        ]);
+
         if ($status !== 'maintenance') {
             $roomSvc->recompute($room->id);
         }
+
         return Redirect::route('rooms.index')->with('success', 'Room created successfully.');
     }
 
     protected function storeRoomRange(Request $request, RoomStatusService $roomSvc)
     {
         $data = $request->validate([
-            'start_room' => 'required|string|max:255',
-            'end_room' => 'required|string|max:255',
-            'room_type' => 'required|string|max:255',
-            'capacity' => 'required|integer|min:1',
-            'price_per_night' => 'required|numeric|min:0',
-            'status' => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
+            'start_room'   => 'required|string|max:255',
+            'end_room'     => 'required|string|max:255',
+            'room_type_id' => 'required|exists:room_types,id',
+            'status'       => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
         ]);
 
-        $startRoom = $data['start_room'];
-        $endRoom = $data['end_room'];
-        
-        // Generate room numbers
-        $roomNumbers = $this->generateRoomNumbers($startRoom, $endRoom);
-        
-        // Check if any room already exists
+        $roomNumbers = $this->generateRoomNumbers($data['start_room'], $data['end_room']);
+
+        // Cek duplikat
         $existingRooms = Room::whereIn('room_number', $roomNumbers)->pluck('room_number')->toArray();
         if (!empty($existingRooms)) {
             return Redirect::back()->withErrors([
                 'start_room' => 'The following rooms already exist: ' . implode(', ', $existingRooms)
             ])->withInput();
         }
-        
-        // Create rooms
+
         $status = ($data['status'] ?? 'available') === 'maintenance' ? 'maintenance' : 'available';
         $createdCount = 0;
-        
+
         foreach ($roomNumbers as $roomNumber) {
             $room = Room::create([
-                'room_number' => $roomNumber,
-                'room_type' => $data['room_type'],
-                'capacity' => $data['capacity'],
-                'price_per_night' => $data['price_per_night'],
-                'status' => $status,
+                'room_number'  => $roomNumber,
+                'room_type_id' => $data['room_type_id'],
+                'status'       => $status,
             ]);
-            
+
             if ($status !== 'maintenance') {
                 $roomSvc->recompute($room->id);
             }
-            
             $createdCount++;
         }
-        
+
         return Redirect::route('rooms.index')->with('success', "{$createdCount} rooms created successfully.");
     }
 
     protected function generateRoomNumbers($start, $end)
     {
-        // Extract numeric parts if room numbers have prefixes (e.g., A101, A102)
         $prefix = '';
         $numericStart = $start;
         $numericEnd = $end;
-        
-        // Check if room numbers have the same non-numeric prefix
+
         preg_match('/^([^\d]+)(\d+)$/', $start, $startMatches);
         preg_match('/^([^\d]+)(\d+)$/', $end, $endMatches);
-        
+
         if (isset($startMatches[1]) && isset($endMatches[1]) && $startMatches[1] === $endMatches[1]) {
             $prefix = $startMatches[1];
-            $numericStart = (int)$startMatches[2];
-            $numericEnd = (int)$endMatches[2];
+            $numericStart = (int) $startMatches[2];
+            $numericEnd = (int) $endMatches[2];
         } else {
-            // Try to handle purely numeric room numbers
             if (is_numeric($start) && is_numeric($end)) {
-                $numericStart = (int)$start;
-                $numericEnd = (int)$end;
+                $numericStart = (int) $start;
+                $numericEnd = (int) $end;
             } else {
-                // Fallback: just return start and end if we can't parse
                 return [$start, $end];
             }
         }
-        
+
         $roomNumbers = [];
         for ($i = $numericStart; $i <= $numericEnd; $i++) {
             $roomNumbers[] = $prefix . $i;
         }
-        
+
         return $roomNumbers;
     }
 
     public function update(Request $request, Room $room, RoomStatusService $roomSvc)
     {
         $data = $request->validate([
-            'room_number' => ['required', 'string', 'max:255', Rule::unique('rooms')->ignore($room->id)],
-            'room_type' => 'required|string|max:255',
-            'capacity' => 'required|integer|min:1',
-            'price_per_night' => 'required|numeric|min:0',
-            'status' => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
+            'room_number'  => ['required', 'string', 'max:255', Rule::unique('rooms')->ignore($room->id)],
+            'room_type_id' => 'required|exists:room_types,id',
+            'status'       => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
         ]);
 
-        $room->fill($data);
+        $room->room_number  = $data['room_number'];
+        $room->room_type_id = $data['room_type_id'];
 
         if (($data['status'] ?? $room->status) === 'maintenance') {
-            $room->status = 'maintenance';           // override
+            $room->status = 'maintenance';
             $room->save();
         } else {
-            $room->status = 'available';             // reset
+            $room->status = 'available';
             $room->save();
-            $roomSvc->recompute($room->id);          // tentukan occupied/available real
+            $roomSvc->recompute($room->id);
         }
 
         return Redirect::route('rooms.index')->with('success', 'Room updated successfully.');
@@ -181,7 +187,6 @@ class RoomController extends Controller
 
     public function destroy(Room $room)
     {
-        // Mencegah penghapusan jika ada booking aktif
         if ($room->bookings()->whereIn('status', ['reserved', 'checked_in'])->exists()) {
             return Redirect::back()->with('error', 'Cannot delete room with active bookings.');
         }

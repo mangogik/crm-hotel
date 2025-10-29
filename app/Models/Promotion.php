@@ -6,18 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class Promotion extends Model
 {
-    // Kolom sesuai migration sederhana kita
     protected $fillable = [
         'name',
         'type',                 // 'birthday' | 'event' | 'membership'
-        'active',               // bool
+        'active',               // boolean 0/1
         'discount_percent',     // nullable
         'discount_amount',      // nullable
         'free_service_id',      // nullable
         'free_service_qty',     // default 1
         'birthday_days_before', // default 3
         'membership_tier',      // nullable
-        'event_code',           // nullable
     ];
 
     protected $casts = [
@@ -31,32 +29,23 @@ class Promotion extends Model
         'updated_at'           => 'datetime',
     ];
 
-    /* ==========================
-       Relationships
-       ========================== */
-
-    // Layanan yang eligible untuk promo (pivot promotion_services)
+    /* Relationships */
     public function services()
     {
         return $this->belongsToMany(Service::class, 'promotion_services');
     }
 
-    // Jika aksi promo berupa free service
     public function freeService()
     {
         return $this->belongsTo(Service::class, 'free_service_id');
     }
 
-    // Jejak pemakaian promo per order
     public function usages()
     {
         return $this->hasMany(PromotionUsed::class, 'promotion_id');
     }
 
-    /* ==========================
-       Scopes kecil & helpers
-       ========================== */
-
+    /* Scopes */
     public function scopeActive($q)
     {
         return $q->where('active', true);

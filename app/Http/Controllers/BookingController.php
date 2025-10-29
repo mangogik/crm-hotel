@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Room;
+use App\Models\RoomType;
 use App\Models\Service;
 use App\Services\RoomStatusService;
 use Illuminate\Http\Request;
@@ -15,14 +16,19 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Booking::with(['customer', 'room', 'interactions']);
+        $query = Booking::with([
+            'customer',
+            'room.roomType',   // pastikan roomType ikut dimuat
+            'interactions'
+        ]);
 
-        // --- Blok filtering dan sorting Anda (tidak ada perubahan) ---
+        // Search: by customer name atau room number
         $query->when($request->input('search'), function ($q, $search) {
             $q->whereHas('customer', function ($subQ) use ($search) {
                 $subQ->where('name', 'like', "%{$search}%");
@@ -30,34 +36,41 @@ class BookingController extends Controller
                 $subQ->where('room_number', 'like', "%{$search}%");
             });
         });
+
+        // Filter status
         $query->when($request->input('status'), function ($q, $status) {
             $q->where('status', $status);
         });
+
+        // Filter date range
         $query->when($request->input('checkin_from'), function ($q, $date) {
             $q->whereDate('checkin_at', '>=', $date);
         });
         $query->when($request->input('checkin_to'), function ($q, $date) {
             $q->whereDate('checkin_at', '<=', $date);
         });
-        $sortBy = $request->input('sort_by', 'created_at');
+
+        $sortBy        = $request->input('sort_by', 'created_at');
         $sortDirection = $request->input('sort_direction', 'desc');
+
+        // Sorting by related columns (customer_name / room_number)
         if (in_array($sortBy, ['customer_name', 'room_number'])) {
-            $relatedTable = $sortBy === 'customer_name' ? 'customers' : 'rooms';
+            $relatedTable  = $sortBy === 'customer_name' ? 'customers' : 'rooms';
             $relatedColumn = $sortBy === 'customer_name' ? 'name' : 'room_number';
+
             $query->orderBy(
-                ($relatedTable === 'customers' ? Customer::select($relatedColumn)
-                    ->whereColumn('customers.id', 'bookings.customer_id') :
-                    Room::select($relatedColumn)
-                    ->whereColumn('rooms.id', 'bookings.room_id')),
+                ($relatedTable === 'customers'
+                    ? Customer::select($relatedColumn)->whereColumn('customers.id', 'bookings.customer_id')
+                    : Room::select($relatedColumn)->whereColumn('rooms.id', 'bookings.room_id')),
                 $sortDirection
             );
         } else {
             $query->orderBy($sortBy, $sortDirection);
         }
-        // --- Akhir dari blok filtering dan sorting ---
 
         $bookings = $query->paginate(10)->withQueryString();
 
+        // Ambil semua service yg dipakai di interactions untuk map id->name
         $serviceIds = $bookings->getCollection()
             ->flatMap(fn($booking) => $booking->interactions)
             ->pluck('metadata.service_id')
@@ -66,60 +79,83 @@ class BookingController extends Controller
 
         $servicesMap = Service::whereIn('id', $serviceIds)->pluck('name', 'id');
 
+        // Transform payload untuk FE
         $bookings->getCollection()->transform(function ($booking) use ($servicesMap) {
+            // pastikan roomType sudah ada agar accessor room_label aman
+            $booking->loadMissing('room.roomType');
+
             return [
-                'id' => $booking->id,
+                'id'          => $booking->id,
                 'customer_id' => $booking->customer_id,
-                'room_id' => $booking->room_id,
-                'checkin_at' => $booking->checkin_at->toIso8601String(),
+                'room_id'     => $booking->room_id,
+                'checkin_at'  => $booking->checkin_at->toIso8601String(),
                 'checkout_at' => $booking->checkout_at->toIso8601String(),
-                'status' => $booking->status,
+                'status'      => $booking->status,
                 'source'      => $booking->source,
-                'notes' => $booking->notes,
-                'created_at' => $booking->created_at->toIso8601String(),
-                'customer' => $booking->customer,
-                'room' => $booking->room,
-                'interactions' => $booking->interactions->map(function ($interaction) use ($servicesMap) {
+                'notes'       => $booking->notes,
+                'created_at'  => $booking->created_at->toIso8601String(),
 
-                    // --- LOGIKA BARU YANG DIPERBAIKI ADA DI SINI ---
+                // Relasi
+                'customer'    => $booking->customer,
+                'room'        => $booking->room, // room berisi roomType juga
 
-                    $serviceId = $interaction->metadata['service_id'] ?? null;
-                    $optionName = $interaction->metadata['value'] ?? null;
-                    $serviceName = $servicesMap[$serviceId] ?? $interaction->details; // Fallback ke details jika nama tidak ditemukan
+                // Accessor
+                'room_label'  => $booking->room_label,
 
-                    $finalDetail = $serviceName; // Defaultnya adalah nama layanan
+                'interactions' => $booking->interactions
+                    ->map(function ($interaction) use ($servicesMap) {
+                        $serviceId   = $interaction->metadata['service_id'] ?? null;
+                        $optionName  = $interaction->metadata['value'] ?? null;
+                        $serviceName = $servicesMap[$serviceId] ?? $interaction->details;
 
-                    // Cek jika ada nama opsi DAN nama itu BERBEDA dari nama layanan utama
-                    if ($optionName && $optionName !== $serviceName) {
-                        $finalDetail = "{$serviceName} ({$optionName})";
-                    }
+                        $finalDetail = $serviceName;
 
-                    // Pengecualian khusus untuk tipe interaksi tertentu
-                    if ($interaction->interaction_type === 'view_services') {
-                        $finalDetail = '-';
-                    } else if ($interaction->interaction_type === 'payment' && isset($interaction->metadata['method'])) {
-                        $finalDetail = ucfirst($interaction->metadata['method']);
-                    }
+                        if ($optionName && $optionName !== $serviceName) {
+                            $finalDetail = "{$serviceName} ({$optionName})";
+                        }
 
-                    return [
-                        'id' => $interaction->id,
-                        'interaction_type' => $interaction->interaction_type,
-                        'details' => $finalDetail,
-                        'metadata' => $interaction->metadata,
-                        'created_at' => $interaction->created_at->toIso8601String(),
-                    ];
-                })->sortByDesc('created_at')->values(),
+                        if ($interaction->interaction_type === 'view_services') {
+                            $finalDetail = '-';
+                        } elseif ($interaction->interaction_type === 'payment' && isset($interaction->metadata['method'])) {
+                            $finalDetail = ucfirst($interaction->metadata['method']);
+                        }
+
+                        return [
+                            'id'               => $interaction->id,
+                            'interaction_type' => $interaction->interaction_type,
+                            'details'          => $finalDetail,
+                            'metadata'         => $interaction->metadata,
+                            'created_at'       => $interaction->created_at->toIso8601String(),
+                        ];
+                    })
+                    ->sortByDesc('created_at')
+                    ->values(),
             ];
         });
 
+        // Dropdown Customers & Rooms untuk form Booking (rooms ikut name type)
+        $customersList = Customer::orderBy('name')->get(['id', 'name', 'phone', 'passport_country']);
+
+        // Rooms sekarang tidak punya kolom room_type; ikutkan relation agar FE bisa render label
+        $roomsList = Room::with('roomType:id,name')
+            ->orderBy('room_number')
+            ->get(['id', 'room_number', 'room_type_id', 'status']);
+
         return Inertia::render('Bookings', [
-            'bookings' => $bookings,
-            'filters' => $request->only(['search', 'status', 'checkin_from', 'checkin_to', 'sort_by', 'sort_direction']),
-            'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'passport_country']),
-            'rooms' => Room::orderBy('room_number')->get(['id', 'room_number', 'room_type', 'status']),
-            'flash' => [
+            'bookings'  => $bookings,
+            'filters'   => $request->only([
+                'search',
+                'status',
+                'checkin_from',
+                'checkin_to',
+                'sort_by',
+                'sort_direction',
+            ]),
+            'customers' => $customersList,
+            'rooms'     => $roomsList,
+            'flash'     => [
                 'success' => session('success'),
-                'error' => session('error'),
+                'error'   => session('error'),
             ],
         ]);
     }
@@ -143,7 +179,7 @@ class BookingController extends Controller
             Log::error('[Booking.store] validation failed', [
                 'errors' => $e instanceof \Illuminate\Validation\ValidationException ? $e->errors() : $e->getMessage(),
             ]);
-            throw $e; // biar tetap balik ke FE sesuai default Laravel
+            throw $e;
         }
 
         // default-kan source
@@ -154,11 +190,12 @@ class BookingController extends Controller
         if ($checkin->isFuture()) {
             $data['status'] = 'reserved';
         } elseif ($checkin->isToday()) {
-            $candidate = $request->input('status');
+            $candidate      = $request->input('status');
             $data['status'] = in_array($candidate, ['reserved', 'checked_in']) ? $candidate : 'reserved';
         } else {
             $data['status'] = $request->input('status', 'reserved');
         }
+
         Log::debug('[Booking.store] final status/source after derive', [
             'status' => $data['status'],
             'source' => $data['source'],
@@ -190,28 +227,33 @@ class BookingController extends Controller
             ]);
 
             $customer = Customer::find($booking->customer_id);
+
+            // Recompute room status
             $roomSvc->recompute($data['room_id']);
 
+            // --- Kirim webhook (kirim room_number & room_type_name sekalian) ---
             try {
-                // Http::post('https://otomations.kumtura.me/webhook-test/booking-created', [
-                //     'id' => $customer->id,
-                //     'booking_id' => $booking->id,
-                //     'name' => $customer->name,
-                //     'email' => $customer->email,
-                //     'phone' => $customer->phone,
-                //     'passport_country' => $customer->passport_country,
-                //     'checkin_at' => $booking->checkin_at,
-                //     'checkout_at' => $booking->checkout_at,
-                //     'notes' => $booking->notes,
-                // ]);
+                $booking->loadMissing('room.roomType');
+
                 Http::post('http://localhost:8088/webhook-test/booking-created', [
-                    'id' => $customer->id,
-                    'room_id' => $booking->room_id,
-                    'checkin_at' => $booking->checkin_at,
-                    'checkout_at' => $booking->checkout_at,
-                    'notes' => $booking->notes,
-                    'source' => $booking->source,
+                    'id'                 => $customer->id,
+                    'booking_id'         => $booking->id,
+                    'access_token'       => $booking->access_token, // <-- TAMBAHKAN INI
+                    'name'               => $customer->name,
+                    'email'              => $customer->email,
+                    'phone'              => $customer->phone,
+                    'passport_country'   => $customer->passport_country,
+                    'room_id'            => $booking->room_id,
+                    'room_number'        => optional($booking->room)->room_number,
+                    'room_type_name'     => optional($booking->room?->roomType)->name,
+                    'room_label'         => $booking->room_label,
+                    'checkin_at'         => $booking->checkin_at,
+                    'checkout_at'        => $booking->checkout_at,
+                    'notes'              => $booking->notes,
+                    'source'             => $booking->source,
+                    'preferred_language' => $customer->preferred_language,
                 ]);
+
                 Log::debug('[Booking.store] webhook sent');
             } catch (\Throwable $e) {
                 Log::error('[Booking.store] webhook failed', ['error' => $e->getMessage()]);
@@ -227,22 +269,21 @@ class BookingController extends Controller
         }
     }
 
-
     public function update(Request $request, Booking $booking, RoomStatusService $roomSvc)
     {
         $data = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'room_id'     => 'required|exists:rooms,id',
-            'checkin_at'  => 'required|date',
-            'checkout_at' => 'required|date|after_or_equal:checkin_at',
-            'status'      => ['required', Rule::in(['reserved', 'checked_in', 'checked_out', 'cancelled'])],
-            'notes'       => 'nullable|string',
+            'customer_id'             => 'required|exists:customers,id',
+            'room_id'                 => 'required|exists:rooms,id',
+            'checkin_at'              => 'required|date',
+            'checkout_at'             => 'required|date|after_or_equal:checkin_at',
+            'status'                  => ['required', Rule::in(['reserved', 'checked_in', 'checked_out', 'cancelled'])],
+            'notes'                   => 'nullable|string',
             'override_future_checkin' => 'sometimes|boolean',
         ]);
 
-        $checkinAt         = Carbon::parse($data['checkin_at']);
-        $isFutureCheckin   = $checkinAt->isAfter(now()) && !$checkinAt->isSameDay(now());
-        $wantsCheckedIn    = $data['status'] === 'checked_in';
+        $checkinAt       = Carbon::parse($data['checkin_at']);
+        $isFutureCheckin = $checkinAt->isAfter(now()) && !$checkinAt->isSameDay(now());
+        $wantsCheckedIn  = $data['status'] === 'checked_in';
 
         if ($wantsCheckedIn && $isFutureCheckin && !$request->boolean('override_future_checkin')) {
             return back()->withErrors([
@@ -260,12 +301,12 @@ class BookingController extends Controller
         $originalStatus = $booking->getOriginal('status');
         $originalRoomId = (int) $booking->room_id;
 
-        $roomChanged   = (int)$data['room_id'] !== $originalRoomId;
+        $roomChanged = (int) $data['room_id'] !== $originalRoomId;
 
         DB::transaction(function () use ($booking, $data, $originalStatus) {
             $booking->update($data);
 
-            // total_visits rules (unchanged)
+            // total_visits rules
             if ($originalStatus !== 'checked_out' && $data['status'] === 'checked_out') {
                 DB::table('customers')->where('id', $data['customer_id'])
                     ->update(['total_visits' => DB::raw('total_visits + 1')]);
@@ -276,7 +317,7 @@ class BookingController extends Controller
             }
         });
 
-        // Determine what changed (now that $booking is fresh)
+        // Refresh & flags
         $booking->refresh();
         $statusChanged = $booking->wasChanged('status');
         $datesChanged  = $booking->wasChanged(['checkin_at', 'checkout_at']);
@@ -287,15 +328,14 @@ class BookingController extends Controller
             'statusChanged' => $statusChanged,
             'datesChanged'  => $datesChanged,
             'new_status'    => $booking->status,
-            'room_id'       => (int)$booking->room_id,
+            'room_id'       => (int) $booking->room_id,
         ]);
-
 
         if ($roomChanged) {
             $roomSvc->recompute($originalRoomId);
         }
         if ($roomChanged || $statusChanged || $datesChanged) {
-            $roomSvc->recompute((int)$booking->room_id);
+            $roomSvc->recompute((int) $booking->room_id);
         }
 
         return Redirect::route('bookings.index')->with('success', 'Booking updated successfully.');
@@ -314,15 +354,15 @@ class BookingController extends Controller
     {
         try {
             $validated = $request->validate([
-                'checkin_date' => 'required|date|after_or_equal:today',
+                'checkin_date'  => 'required|date|after_or_equal:today',
                 'checkout_date' => 'required|date|after:checkin_date',
-                'room_type' => 'nullable|string',
-                'min_price' => 'nullable|numeric|min:0',
-                'max_price' => 'nullable|numeric|min:0',
-                'capacity' => 'nullable|integer|min:1',
+                'room_type'     => 'nullable|string',   // nama tipe (opsional)
+                'min_price'     => 'nullable|numeric|min:0',
+                'max_price'     => 'nullable|numeric|min:0',
+                'capacity'      => 'nullable|integer|min:1',
             ]);
 
-            $checkin = Carbon::parse($validated['checkin_date']);
+            $checkin  = Carbon::parse($validated['checkin_date']);
             $checkout = Carbon::parse($validated['checkout_date']);
 
             $bookedRoomIds = Booking::where(function ($query) use ($checkin, $checkout) {
@@ -332,33 +372,46 @@ class BookingController extends Controller
                 ->whereIn('status', ['reserved', 'checked_in'])
                 ->pluck('room_id');
 
-            $query = Room::whereNotIn('id', $bookedRoomIds);
+            // Gabungkan rooms + room_types untuk filter berdasar tipe/price/capacity
+            $query = Room::query()
+                ->leftJoin('room_types', 'room_types.id', '=', 'rooms.room_type_id')
+                ->whereNotIn('rooms.id', $bookedRoomIds)
+                ->select([
+                    'rooms.id',
+                    'rooms.room_number',
+                    'rooms.status',
+                    'rooms.room_type_id',
+                    'room_types.name as type_name',
+                    'room_types.capacity as type_capacity',
+                    'room_types.price_per_night as type_price',
+                ]);
 
             if ($request->filled('room_type')) {
-                $query->where('room_type', $request->room_type);
+                $query->where('room_types.name', $request->room_type);
             }
             if ($request->filled('min_price')) {
-                $query->where('price_per_night', '>=', $request->min_price);
+                $query->where('room_types.price_per_night', '>=', $request->min_price);
             }
             if ($request->filled('max_price')) {
-                $query->where('price_per_night', '<=', $request->max_price);
+                $query->where('room_types.price_per_night', '<=', $request->max_price);
             }
             if ($request->filled('capacity')) {
-                $query->where('capacity', '>=', $request->capacity);
+                $query->where('room_types.capacity', '>=', $request->capacity);
             }
 
-            $rooms = $query->get();
+            $rows   = $query->get();
             $nights = $checkin->diffInDays($checkout);
 
-            $transformedRooms = $rooms->map(function ($room) use ($nights) {
+            $transformedRooms = $rows->map(function ($row) use ($nights) {
+                $price = (float) ($row->type_price ?? 0);
                 return [
-                    'id' => $room->id,
-                    'room_number' => $room->room_number,
-                    'room_type' => $room->room_type,
-                    'capacity' => $room->capacity,
-                    'price_per_night' => $room->price_per_night,
-                    'total_price' => $room->price_per_night * $nights,
-                    'nights' => $nights,
+                    'id'              => $row->id,
+                    'room_number'     => $row->room_number,
+                    'room_type'       => $row->type_name,        // tampilkan nama tipe (bukan kolom lama)
+                    'capacity'        => (int) $row->type_capacity,
+                    'price_per_night' => $price,
+                    'total_price'     => $price * $nights,
+                    'nights'          => $nights,
                 ];
             });
 
@@ -376,8 +429,8 @@ class BookingController extends Controller
         $q = $customer->bookings()
             ->select('id', 'room_id', 'status', 'checkin_at', 'checkout_at')
             ->with([
-                // pilih kolom yang benar dari tabel rooms
-                'room:id,room_number,room_type'
+                'room:id,room_number,room_type_id',  // kolom relasi baru
+                'room.roomType:id,name'              // ikutkan nama tipe
             ]);
 
         if ($onlyActive) {
@@ -387,25 +440,50 @@ class BookingController extends Controller
         $rows = $q->orderByDesc('checkin_at')->get();
 
         $payload = $rows->map(function ($b) {
-            $label = null;
-            if ($b->room) {
-                // contoh label: "Room 101 (Standard)"
-                $label = 'Room ' . $b->room->room_number;
-                if (!empty($b->room->room_type)) {
-                    $label .= ' (' . $b->room->room_type . ')';
-                }
-            }
+            $label = $b->room_label; // accessor aman
 
             return [
                 'id'          => $b->id,
                 'status'      => $b->status,
-                'room_label'  => $label,              // <- dipakai di UI
-                'room_number' => $b->room->room_number ?? null, // kalau mau
+                'room_label'  => $label,
+                'room_number' => $b->room->room_number ?? null,
+                'room_type'   => $b->room?->roomType?->name, // info tambahan jika mau dipakai FE
                 'checkin_at'  => $b->checkin_at,
                 'checkout_at' => $b->checkout_at,
             ];
         });
 
         return response()->json(['bookings' => $payload]);
+    }
+
+    public function getActiveBookingByPhone($phone)
+    {
+        $bookings = Booking::with(['customer', 'room.roomType'])
+            ->whereHas('customer', function ($query) use ($phone) {
+                $query->where('phone', $phone);
+            })
+            ->whereIn('status', ['reserved', 'checked_in'])
+            ->orderBy('checkin_at', 'asc')
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            return response()->json(['message' => 'No active bookings found for this phone number.'], 404);
+        }
+
+        $payload = $bookings->map(function ($booking) {
+            return [
+                'id'                 => $booking->customer->id,
+                'booking_id'         => $booking->id,
+                'name'               => $booking->customer->name,
+                'email'              => $booking->customer->email,
+                'phone'              => $booking->customer->phone,
+                'preferred_language' => $booking->customer->preferred_language,
+                'room_label'         => $booking->room_label,
+                'checkin_at'         => $booking->checkin_at->toIso8601String(),
+                'checkout_at'        => $booking->checkout_at->toIso8601String(),
+            ];
+        });
+
+        return response()->json($payload);
     }
 }

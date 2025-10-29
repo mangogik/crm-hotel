@@ -117,7 +117,7 @@ const BookingTableRow = ({
           {booking.room?.room_number ? (
             <Badge variant="outline">
               {booking.room.room_number}
-              {booking.room?.room_type ? ` - ${booking.room.room_type}` : ""}
+              {booking.room?.room_type ? ` - ${booking.room.room_type.name}` : ""}
             </Badge>
           ) : (
             <span className="text-muted-foreground">No room</span>

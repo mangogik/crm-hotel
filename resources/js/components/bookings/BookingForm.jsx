@@ -90,7 +90,6 @@ const BookingForm = ({ data, setData, errors, customers, rooms }) => {
                         </SelectContent>
                     </Select>
 
-
                     <Button
                         type="button"
                         variant="outline"
@@ -151,7 +150,8 @@ const BookingForm = ({ data, setData, errors, customers, rooms }) => {
                     <SelectContent>
                         {rooms.map((room) => (
                             <SelectItem key={room.id} value={String(room.id)}>
-                                {room.room_number} - {room.room_type}
+                                {room.room_number} -{" "}
+                                {room.room_type ? room.room_type.name : "N/A"}
                             </SelectItem>
                         ))}
                     </SelectContent>

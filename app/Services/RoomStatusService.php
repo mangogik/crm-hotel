@@ -28,12 +28,10 @@ class RoomStatusService
         $hasActiveNow = \App\Models\Booking::where('room_id', $roomId)
             ->where('status', 'checked_in')
             ->where(function ($q) use ($now, $today) {
-                // (1) strict time window covers “right now”
                 $q->where(function ($qq) use ($now) {
                     $qq->where('checkin_at', '<=', $now)
                         ->where('checkout_at', '>', $now);
                 })
-                    // OR (2) same-day check-in counts as occupied even if time is later today
                     ->orWhereDate('checkin_at', $today);
             })
             ->exists();

@@ -14,6 +14,7 @@ class Order extends Model
         'subtotal',
         'discount_total',
         'grand_total',
+        'notes',               // <--- NEW: order-level note
     ];
 
     protected $casts = [
@@ -43,11 +44,11 @@ class Order extends Model
 
     public function services()
     {
-        // pivot: order_service
-        return $this->belongsToMany(Service::class, 'order_service')
-            ->withPivot(['quantity', 'price_per_unit', 'details'])
+        return $this->belongsToMany(Service::class)
+            ->withPivot(['quantity', 'price_per_unit', 'details', 'answers_json'])
             ->withTimestamps();
     }
+
 
     // NEW: dibutuhkan controller untuk load daftar pembayaran per order
     public function payments()
