@@ -119,14 +119,6 @@ const PaymentTableRow = ({
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">
-                                                Invoice ID:
-                                            </span>
-                                            <span className="font-mono">
-                                                {payment.invoice_id || "—"}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-muted-foreground">
                                                 Paid At:
                                             </span>
                                             <span>

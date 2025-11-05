@@ -74,7 +74,7 @@ class OrderController extends Controller
             ->with([
                 'customer',
                 'services' => function ($q) {
-                    $q->select('services.id', 'services.name')
+                    $q->select('services.id', 'services.name', 'services.description')
                         ->with(['activeQuestion:id,service_id,questions_json']);
                 },
                 'payments' => fn($q) => $q->latest(),

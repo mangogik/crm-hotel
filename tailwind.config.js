@@ -68,5 +68,5 @@ export default {
         },
     },
 
-    plugins: [forms], // Hanya plugin bawaan Anda
+    plugins: [forms, require("@tailwindcss/typography")], // Hanya plugin bawaan Anda
 };

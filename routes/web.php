@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\AIController;
+use App\Http\Controllers\AIController;  
 use App\Http\Controllers\InteractionController;
 use App\Http\Controllers\BookingController;
 use Illuminate\Foundation\Application;
@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PaymentController;
@@ -17,13 +18,11 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\RoomTypeController;
 use App\Http\Controllers\SettingController;
-
-// !!! PENTING: Menambahkan 'use Mail' untuk rute tes !!!
 use Illuminate\Support\Facades\Mail;
 
 /*
 |--------------------------------------------------------------------------
-| Rute Publik
+| Public Routes
 |--------------------------------------------------------------------------
 */
 
@@ -39,28 +38,26 @@ Route::get('/', function () {
 Route::get('/check-ai-models', [AIController::class, 'listModels']);
 
 // =====================================================================
-// == RUTE TES EMAIL ==
+// == EMAIL TEST ROUTE ==
 // =====================================================================
 Route::get('/test-email-server/{email}', function ($email) {
     try {
-        // Kita akan membangun pesan teksnya di sini
         $pesan = "Halo!\n\n"
             . "Ini adalah email tes otomatis dari aplikasi Anda.\n\n"
             . "=============================================\n"
             . "   KONEKSI SMTP BERHASIL DIKONFIGURASI   \n"
             . "=============================================\n\n"
-            . "Jika Anda menerima email ini, itu berarti gg gaming:\n"
+            . "Jika Anda menerima email ini, itu berarti SMTP bekerja:\n"
             . "Penerima Tes: " . $email . "\n"
-            . "Waktu Tes: " . now()->toDateTimeString() . " (Waktu Server)\n\n"
+            . "Waktu Tes: " . now()->toDateTimeString() . " (Server)\n\n"
             . "Salam,\n"
-            . "Developer Yogix Gahol mantap gacor anjay";
+            . "Developer Yogix";
 
         Mail::raw($pesan, function ($message) use ($email) {
-            $message->to($email)
-                ->subject('✅ [TES BERHASIL] - Email terkirim!');
+            $message->to($email)->subject('✅ [TES BERHASIL] - Email terkirim!');
         });
 
-        return 'Sukses! Email tes yang lebih menarik telah dikirim ke ' . $email;
+        return 'Sukses! Email tes telah dikirim ke ' . $email;
     } catch (\Exception $e) {
         return 'Gagal: ' . $e->getMessage();
     }
@@ -70,7 +67,7 @@ Route::get('/test-email-server/{email}', function ($email) {
 
 /*
 |--------------------------------------------------------------------------
-| Rute API / Bot (tanpa CSRF)
+| API / Bot Routes (No CSRF)
 |--------------------------------------------------------------------------
 */
 Route::prefix('api')->middleware('n8n')->group(function () {
@@ -83,35 +80,33 @@ Route::prefix('api')->middleware('n8n')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Rute Terproteksi
+| Protected Routes
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Rute profil bawaan Breeze
+    // --- Profile (Breeze default)
     Route::get('/profile', [\App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [\App\Http\Controllers\ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // --- Grup untuk API internal yang memerlukan otentikasi session ---
+    // --- Internal API ---
     Route::prefix('api')->group(function () {
         Route::get('/bookings/check-availability', [BookingController::class, 'checkAvailability'])->name('bookings.checkAvailability');
         Route::get('/customers/{customer}/bookings', [BookingController::class, 'byCustomer'])->name('customers.bookings');
         Route::get('/promotions/check', [PromotionController::class, 'checkEligibility'])->name('promotions.check');
         Route::post('/promotions/check-eligibility', [PromotionController::class, 'checkEligibility'])->name('promotions.checkEligibility');
         Route::get('/services/{service}/questions', [ServiceController::class, 'getQuestions']);
-        Route::get('/services/{service}/images', [ServiceController::class, 'getImages'])
-            ->name('services.images');
+        Route::get('/services/{service}/images', [ServiceController::class, 'getImages'])->name('services.images');
+        Route::post('/ai/aieditor-proxy', [AIController::class, 'proxyAIEditor'])->name('ai.aieditor.proxy');
     });
 
-    // --- HANYA BISA DIAKSES MANAGER ---
+    // --- Manager Only ---
     Route::middleware(['role:manager'])->group(function () {
-        // Route::get('/history', function () {
-        //     return Inertia::render('Reports');
-        // })->name('history');
+        // Reserved for manager-only routes
     });
 
-    // --- HANYA BISA DIAKSES FRONT OFFICE ---
+    // --- Front Office Only ---
     Route::middleware(['role:front-office'])->group(function () {
         Route::resource('customers', CustomerController::class);
         Route::resource('services', ServiceController::class);
@@ -120,9 +115,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('rooms', RoomController::class);
         Route::resource('payments', PaymentController::class);
         Route::resource('promotions', PromotionController::class);
+
+        // ✅ Service Categories CRUD
+        // Menggunakan resource route dengan hanya metode yang diperlukan
+        Route::resource('service-categories', ServiceCategoryController::class)->only(['store', 'update', 'destroy']);
     });
 
-    // --- BISA DIAKSES MANAGER & FRONT OFFICE ---
+    // --- Manager + Front Office ---
     Route::middleware(['role:manager,front-office'])->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/room-types', [RoomTypeController::class, 'store'])->name('room-types.store');
@@ -137,5 +136,5 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-// Memuat rute otentikasi (login, register, dll) dari Breeze
+// Authentication routes
 require __DIR__ . '/auth.php';

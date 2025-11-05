@@ -39,14 +39,6 @@ class AIController extends Controller
                 ->limit(50) // Ambil 50 booking terakhir yang sudah selesai
                 ->get();
 
-            // if ($bookings->count() < 5) { // Jumlah minimal data untuk dianalisis
-            //     return response()->json([
-            //         'summary' => 'Data booking yang telah selesai tidak cukup untuk dianalisis (kurang dari 5).',
-            //         'trends' => [],
-            //         'recommendations' => []
-            //     ]);
-            // }
-
             // Sederhanakan data untuk dikirim ke AI
             $simplifiedData = $this->simplifyDataForAI($bookings);
 
@@ -104,11 +96,9 @@ class AIController extends Controller
     /**
      * Membuat prompt AI yang fokus pada analisis upselling dan konversi.
      */
-    // app/Http-Controllers-AIController.php
-
     private function createUpsellingPrompt(string $dataJson): string
     {
-        // Kamus interaksi agar konsisten dengan istilah yang tampil di dashboard
+        // ... (Kode prompt Anda tidak berubah)
         $interactionTerms = json_encode([
             'view_services' => 'Tamu membuka menu layanan untuk pertama kali.',
             'req_svc'       => 'Tamu melihat detail dari sebuah layanan.',
@@ -117,7 +107,6 @@ class AIController extends Controller
             'payment'       => 'Tamu memilih metode pembayaran untuk layanan.',
             'cancel'        => 'Tamu membatalkan proses pemesanan.',
         ], JSON_PRETTY_PRINT);
-
 
         return <<<PROMPT
 Anda adalah Analis Bisnis & Strategi Upselling untuk hotel kami. 
@@ -200,6 +189,62 @@ PROMPT;
             dd($response->body());
         } catch (Exception $e) {
             return "Terjadi kesalahan: " . $e->getMessage();
+        }
+    }
+
+    /**
+     * Bertindak sebagai proxy aman untuk AIEditor.
+     * Menerima request dari editor, menambahkan API key, dan meneruskan ke Gemini.
+     */
+    public function proxyAIEditor(Request $request): JsonResponse
+    {
+        try {
+            // 1. Ambil API Key (menggunakan cara Anda yang sudah ada)
+            $apiKey = config('services.gemini.key'); //
+            if (empty($apiKey)) {
+                throw new Exception('Konfigurasi API AI tidak ditemukan.');
+            }
+
+            // 2. Ambil data dari aieditor
+            // 'aieditor' mengirim 'prompt' dan 'model'
+            $prompt = $request->input('prompt');
+            if (empty($prompt)) {
+                return response()->json(['error' => 'Prompt tidak boleh kosong.'], 400);
+            }
+
+            $model = $request->input('model', 'gemini-2.5-flash');
+
+            // Dan pastikan endpoint versi baru:
+            $apiUrl = "https://generativelanguage.googleapis.com/v1/models/{$model}:generateContent?key={$apiKey}";
+            // 4. Buat payload untuk Gemini (menggunakan format Anda)
+            $payload = [
+                'contents' => [['parts' => [['text' => $prompt]]]] //
+            ];
+
+            // 5. Kirim ke Gemini (menggunakan Http client Anda)
+            $response = Http::timeout(60) // 60 detik timeout untuk editing
+                ->post($apiUrl, $payload); //
+
+            if ($response->failed()) { //
+                Log::error('AIEDITOR_PROXY: Gemini API request failed.', ['status' => $response->status(), 'response' => $response->body()]);
+                throw new Exception("Gagal menghubungi AI: " . $response->json('error.message', 'Terjadi kesalahan.'));
+            }
+
+            // 6. Ambil teks (menggunakan cara Anda)
+            $aiText = $response->json('candidates.0.content.parts.0.text'); //
+            if (is_null($aiText)) {
+                throw new Exception('AI memberikan respons kosong.');
+            }
+
+            // 7. Kembalikan dalam format yang diharapkan aieditor
+            return response()->json([
+                'result' => $aiText
+            ]);
+        } catch (ConnectionException $e) {
+            Log::critical('AIEDITOR_PROXY: Could not connect to Gemini API.', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Tidak dapat terhubung ke server AI.'], 500);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
         }
     }
 }

@@ -15,6 +15,7 @@ class Order extends Model
         'discount_total',
         'grand_total',
         'notes',               // <--- NEW: order-level note
+        'order_code',
     ];
 
     protected $casts = [

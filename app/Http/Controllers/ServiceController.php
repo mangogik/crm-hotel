@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Service;
+use App\Models\ServiceCategory;
 use App\Models\ServiceQuestion;
 use App\Models\ServiceImage;
 use App\Models\ServiceOptionImage;
@@ -16,8 +17,7 @@ use Illuminate\Support\Facades\Storage;
 class ServiceController extends Controller
 {
     /**
-     * Helper: normalisasi options agar selalu punya key, name, price.
-     * - Dipakai saat store & update untuk tipe selectable / multiple_options
+     * Helper: normalize options so they always have key, name, price.
      */
     private function normalizeOptionsWithKeys($rawOptions)
     {
@@ -28,7 +28,7 @@ class ServiceController extends Controller
         $normalized = [];
         foreach ($rawOptions as $idx => $opt) {
             $normalized[] = [
-                'key'   => $opt['key']   ?? ('opt_' . ($idx + 1)),
+                'key'   => $opt['key']   ?? ('opt_' . ($idx + 1)), // ✅ Perbaikan di sini
                 'name'  => $opt['name']  ?? ('Option ' . ($idx + 1)),
                 'price' => $opt['price'] ?? 0,
             ];
@@ -37,18 +37,20 @@ class ServiceController extends Controller
         return $normalized;
     }
 
+
     public function index(Request $request)
     {
         $search = $request->input('search');
         $type = $request->input('type');
         $fulfillmentType = $request->input('fulfillment_type');
         $offeringSession = $request->input('offering_session');
+        $categoryId = $request->input('category_id');
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = in_array(strtolower($request->input('sort_direction', 'desc')), ['asc', 'desc'])
             ? $request->input('sort_direction', 'desc')
             : 'desc';
 
-        $query = Service::query();
+        $query = Service::query()->with(['category', 'activeQuestion', 'images', 'optionImages']);
 
         if ($search && is_string($search)) {
             $query->where(function ($q) use ($search) {
@@ -69,17 +71,16 @@ class ServiceController extends Controller
             $query->where('offering_session', $offeringSession);
         }
 
+        if ($categoryId && is_numeric($categoryId)) {
+            $query->where('category_id', $categoryId);
+        }
+
         $allowedSorts = ['name', 'type', 'fulfillment_type', 'price', 'created_at', 'offering_session'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
 
         $services = $query
-            ->with([
-                'activeQuestion',
-                'images',
-                'optionImages',
-            ])
             ->orderBy($sortBy, $sortDirection)
             ->paginate(10)
             ->withQueryString();
@@ -90,7 +91,7 @@ class ServiceController extends Controller
             return $service;
         });
 
-        // Insight cards
+        // Insights (kept intact)
         $mostPopularService = Service::withCount('orders')
             ->orderBy('orders_count', 'desc')
             ->first();
@@ -130,13 +131,24 @@ class ServiceController extends Controller
                 return $service;
             });
 
+        $categories = ServiceCategory::withCount('services')->orderBy('name')->get();
+
         if ($request->wantsJson()) {
             return response()->json($services);
         }
 
         return Inertia::render('Services', [
             'services' => $services,
-            'filters' => $request->only(['search', 'type', 'fulfillment_type', 'offering_session', 'sort_by', 'sort_direction']),
+            'categories' => $categories,
+            'filters' => $request->only([
+                'search',
+                'type',
+                'fulfillment_type',
+                'offering_session',
+                'category_id',
+                'sort_by',
+                'sort_direction',
+            ]),
             'insights' => [
                 'mostPopular' => $mostPopularService,
                 'highestRevenue' => $highestRevenueService,
@@ -149,19 +161,29 @@ class ServiceController extends Controller
         ]);
     }
 
+    public function create()
+    {
+        // Fetch categories to pass to the create form dropdown
+        $categories = ServiceCategory::orderBy('name')->get();
+
+        return Inertia::render('Services/Create', [
+            'categories' => $categories,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $this->validateData($request);
 
         DB::beginTransaction();
         try {
-            // Normalisasi options (kalau tipe selectable/multiple_options)
             $optionsNormalized = null;
             if (in_array($validated['type'], ['selectable', 'multiple_options'])) {
                 $optionsNormalized = $this->normalizeOptionsWithKeys($validated['options']);
             }
 
             $service = Service::create([
+                'category_id'     => $validated['category_id'] ?? null,
                 'name'             => $validated['name'],
                 'description'      => $validated['description'] ?? null,
                 'type'             => $validated['type'],
@@ -184,7 +206,7 @@ class ServiceController extends Controller
                 }
             }
 
-            // Service-level images[] (general)
+            // General images
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $file) {
                     if ($file instanceof \Illuminate\Http\UploadedFile) {
@@ -198,16 +220,13 @@ class ServiceController extends Controller
                 }
             }
 
-            // Option-level images: option_images[opt_key] = file
+            // Option images
             if (in_array($service->type, ['selectable', 'multiple_options']) && $request->hasFile('option_images')) {
                 $optionMap = collect($service->options ?? [])->keyBy('key');
-
                 foreach ($request->file('option_images') as $optionKey => $file) {
                     if ($file instanceof \Illuminate\Http\UploadedFile) {
                         $path = $file->store('services/options', 'public');
-
                         $optionName = optional($optionMap->get($optionKey))['name'] ?? $optionKey;
-
                         ServiceOptionImage::create([
                             'service_id'  => $service->id,
                             'option_key'  => $optionKey,
@@ -225,16 +244,7 @@ class ServiceController extends Controller
             Log::error('Service creation failed: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
-
-            if ($request->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Failed to create service. Please try again.'], 500);
-            }
-
             return redirect()->back()->with('error', 'Failed to create service. Please try again.');
-        }
-
-        if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Service created successfully.', 'data' => $service]);
         }
 
         return redirect()
@@ -242,77 +252,128 @@ class ServiceController extends Controller
             ->with('success', 'Service created successfully.');
     }
 
+    // --- FILE BARU ---
+    // Method ini akan dipanggil oleh rute GET /services/{service}/edit
+    // untuk menampilkan halaman form edit.
+    public function edit(Service $service)
+    {
+        // Make sure to load all relationships including optionImages
+        $service->load(['category', 'activeQuestion', 'images', 'optionImages']);
+
+        // Debug log to check option images
+        Log::info('Service edit data', [
+            'service_id' => $service->id,
+            'options' => $service->options,
+            'option_images' => $service->optionImages->toArray()
+        ]);
+
+        $categories = ServiceCategory::orderBy('name')->get();
+
+        return Inertia::render('Services/Edit', [
+            'service' => $service,
+            'categories' => $categories,
+        ]);
+    }
+    // --- AKHIR FILE BARU ---
+
     public function update(Request $request, Service $service)
     {
-        // VALIDATE (now includes file size/type rules)
-        Log::info('SERVICE VALIDATION START', ['request_data' => $request->all()]);
+        // Log 1: Data mentah dari request
+        Log::info('SERVICE_UPDATE: Raw request data.', $request->all());
+
         $validated = $this->validateData($request);
-        Log::info('SERVICE VALIDATION SUCCESS', ['validated_data' => $validated]);
+
+        // Log 2: Data setelah validasi
+        Log::info('SERVICE_UPDATE: Validated data.', $validated);
 
         DB::beginTransaction();
         try {
-            /**
-             * 1. Update core service data
-             */
             $optionsNormalized = null;
             if (in_array($validated['type'], ['selectable', 'multiple_options'])) {
                 $optionsNormalized = $this->normalizeOptionsWithKeys($validated['options']);
             }
 
+            // --- PERBAIKAN LOGIKA UPDATE ---
+            // Pisahkan data utama dari data yang mungkin tidak ada (nullable foreign key)
             $updateData = [
-                'name'             => $validated['name'],
-                'description'      => $validated['description'] ?? null,
-                'type'             => $validated['type'],
-                'unit_name'        => $validated['type'] === 'per_unit' ? $validated['unit_name'] : null,
-                'fulfillment_type' => $validated['fulfillment_type'],
-                'offering_session' => $validated['offering_session'],
-                'price'            => in_array($validated['type'], ['selectable', 'free', 'multiple_options'])
+                // 'category_id' sengaja dihilangkan dari sini
+                'name'              => $validated['name'],
+                'description'       => $validated['description'] ?? null,
+                'type'              => $validated['type'],
+                'unit_name'         => $validated['type'] === 'per_unit' ? $validated['unit_name'] : null,
+                'fulfillment_type'  => $validated['fulfillment_type'],
+                'offering_session'  => $validated['offering_session'],
+                'price'             => in_array($validated['type'], ['selectable', 'free', 'multiple_options'])
                     ? 0
                     : $validated['price'],
-                'options'          => in_array($validated['type'], ['selectable', 'multiple_options'])
+                'options'           => in_array($validated['type'], ['selectable', 'multiple_options'])
                     ? $optionsNormalized
                     : null,
             ];
 
+            // Hanya perbarui category_id jika kunci 'category_id' ada di data yang divalidasi
+            // Ini mencegah 'category_id' terhapus (menjadi null) jika tidak dikirim dari form
+            if (array_key_exists('category_id', $validated)) {
+                $updateData['category_id'] = $validated['category_id']; // Ini bisa null (jika "No Category") atau ID
+            }
+            // --- END PERBAIKAN ---
+
+            // Log 3: Data final yang akan di-update
+            Log::info('SERVICE_UPDATE: Final data for update.', $updateData);
+
             $service->update($updateData);
 
-            /**
-             * 2. Questions
-             */
-            if ($request->has('has_questions')) {
-                if ($request->has_questions) {
-                    $questions = $request->input('questions', []);
-                    $questions = array_filter($questions, fn($q) => !empty(trim($q)));
+            // Update questions
+            if ($request->has('has_questions') && $request->input('has_questions') == '1') {
+                $questions = $request->input('questions', []);
+                $questions = array_filter($questions, fn($q) => !empty(trim($q)));
 
-                    if (!empty($questions)) {
-                        ServiceQuestion::createNewVersion($service->id, $questions);
-                    } else {
-                        ServiceQuestion::where('service_id', $service->id)->update(['is_active' => false]);
-                    }
+                if (!empty($questions)) {
+                    ServiceQuestion::createNewVersion($service->id, $questions);
                 } else {
-                    ServiceQuestion::where('service_id', $service->id)->update(['is_active' => false]);
+                    // Jika 'has_questions' true tapi array 'questions' kosong, hapus yang lama
+                    Log::info('SERVICE_UPDATE: has_questions is true but no questions provided, deleting old ones.');
+                    $service->serviceQuestions()->update(['is_active' => false]);
+                }
+            } else {
+                // Jika has_questions adalah false (atau 0), nonaktifkan semua
+                Log::info('SERVICE_UPDATE: has_questions is false, deactivating all questions.');
+                $service->serviceQuestions()->update(['is_active' => false]);
+            }
+
+
+            // Handle image deletions
+            if ($request->has('images_to_delete')) {
+                $imagesToDelete = $request->input('images_to_delete');
+                if (is_array($imagesToDelete)) {
+                    Log::info('SERVICE_UPDATE: Deleting general images.', $imagesToDelete);
+                    foreach ($imagesToDelete as $imageId) {
+                        $image = ServiceImage::find($imageId);
+                        if ($image && $image->service_id == $service->id) {
+                            Storage::disk('public')->delete($image->image_path);
+                            $image->delete();
+                        }
+                    }
                 }
             }
 
-            /**
-             * 3. DELETE selected general images (partial delete)
-             */
-            if ($request->filled('images_to_delete') && is_array($request->images_to_delete)) {
-                $toDeleteGeneral = ServiceImage::where('service_id', $service->id)
-                    ->whereIn('id', $request->images_to_delete)
-                    ->get();
-
-                foreach ($toDeleteGeneral as $img) {
-                    Storage::disk('public')->delete($img->image_path);
-                    $img->delete();
+            if ($request->has('option_images_to_delete')) {
+                $optionImagesToDelete = $request->input('option_images_to_delete');
+                if (is_array($optionImagesToDelete)) {
+                    Log::info('SERVICE_UPDATE: Deleting option images.', $optionImagesToDelete);
+                    foreach ($optionImagesToDelete as $imageId) {
+                        $image = ServiceOptionImage::find($imageId);
+                        if ($image && $image->service_id == $service->id) {
+                            Storage::disk('public')->delete($image->image_path);
+                            $image->delete();
+                        }
+                    }
                 }
             }
 
-            /**
-             * 4. APPEND new general images (gallery)
-             *    - old images stay unless explicitly deleted
-             */
+            // Handle new image uploads
             if ($request->hasFile('images')) {
+                Log::info('SERVICE_UPDATE: Uploading new general images.');
                 foreach ($request->file('images') as $file) {
                     if ($file instanceof \Illuminate\Http\UploadedFile) {
                         $path = $file->store('services', 'public');
@@ -325,40 +386,25 @@ class ServiceController extends Controller
                 }
             }
 
-            /**
-             * 5. DELETE selected option images (partial delete)
-             */
-            if ($request->filled('option_images_to_delete') && is_array($request->option_images_to_delete)) {
-                $toDeleteOption = ServiceOptionImage::where('service_id', $service->id)
-                    ->whereIn('id', $request->option_images_to_delete)
-                    ->get();
-
-                foreach ($toDeleteOption as $oi) {
-                    Storage::disk('public')->delete($oi->image_path);
-                    $oi->delete();
-                }
-            }
-
-            /**
-             * 6. APPEND new per-option images
-             *    We still accept uploads as "option_images_new[<optionKey>] = file"
-             *    We'll then enforce only ONE image per option.
-             */
-            $newOptionKeysUploaded = [];
-
-            if (
-                in_array($service->type, ['selectable', 'multiple_options'])
-                && $request->hasFile('option_images_new')
-            ) {
-                $serviceFreshOptions = $service->fresh()->options ?? [];
-                $optionMap = collect($serviceFreshOptions)->keyBy('key');
-
+            // Handle new option image uploads
+            if (in_array($service->type, ['selectable', 'multiple_options']) && $request->hasFile('option_images_new')) {
+                Log::info('SERVICE_UPDATE: Uploading new option images.');
+                $optionMap = collect($service->options ?? [])->keyBy('key');
                 foreach ($request->file('option_images_new') as $optionKey => $file) {
                     if ($file instanceof \Illuminate\Http\UploadedFile) {
+                        // Hapus dulu gambar lama di key/posisi yang sama
+                        $existingImage = ServiceOptionImage::where('service_id', $service->id)
+                            ->where('option_key', $optionKey)
+                            ->first();
+                        if ($existingImage) {
+                            Log::info('SERVICE_UPDATE: Deleting old option image for key ' . $optionKey);
+                            Storage::disk('public')->delete($existingImage->image_path);
+                            $existingImage->delete();
+                        }
+
+                        // Buat gambar baru
                         $path = $file->store('services/options', 'public');
-
                         $optionName = optional($optionMap->get($optionKey))['name'] ?? $optionKey;
-
                         ServiceOptionImage::create([
                             'service_id'  => $service->id,
                             'option_key'  => $optionKey,
@@ -366,64 +412,19 @@ class ServiceController extends Controller
                             'image_path'  => $path,
                             'caption'     => null,
                         ]);
-
-                        $newOptionKeysUploaded[] = $optionKey;
-                    }
-                }
-            }
-
-            /**
-             * 6b. Enforce single image per option_key.
-             * Keep newest, delete the rest.
-             */
-            if (!empty($newOptionKeysUploaded)) {
-                $uniqueKeys = array_unique($newOptionKeysUploaded);
-
-                foreach ($uniqueKeys as $optKey) {
-                    $allForKey = ServiceOptionImage::where('service_id', $service->id)
-                        ->where('option_key', $optKey)
-                        ->orderByDesc('id')
-                        ->get();
-
-                    $keepFirst = true;
-                    foreach ($allForKey as $img) {
-                        if ($keepFirst) {
-                            $keepFirst = false;
-                            continue;
-                        }
-
-                        Storage::disk('public')->delete($img->image_path);
-                        $img->delete();
                     }
                 }
             }
 
             DB::commit();
-            Log::info('SERVICE UPDATE SUCCESS', ['service_id' => $service->id]);
+            Log::info('SERVICE_UPDATE: Update successful for service ID ' . $service->id);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Service update failed: ' . $e->getMessage(), [
+                'service_id' => $service->id,
                 'trace' => $e->getTraceAsString(),
             ]);
-
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to update service. Please try again.',
-                ], 500);
-            }
-
-            return redirect()
-                ->back()
-                ->with('error', 'Failed to update service. Please try again.');
-        }
-
-        if ($request->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Service updated successfully.',
-                'data'    => $service->fresh(['images', 'optionImages']),
-            ]);
+            return redirect()->back()->with('error', 'Failed to update service. Please try again.');
         }
 
         return redirect()
@@ -433,7 +434,6 @@ class ServiceController extends Controller
 
     public function destroy(Request $request, Service $service)
     {
-        // optional: hapus file storage juga
         foreach ($service->images as $img) {
             Storage::disk('public')->delete($img->image_path);
         }
@@ -442,10 +442,6 @@ class ServiceController extends Controller
         }
 
         $service->delete();
-
-        if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Service deleted successfully.']);
-        }
 
         return redirect()
             ->route('services.index')
@@ -457,31 +453,16 @@ class ServiceController extends Controller
         Log::info('SERVICE VALIDATION START', ['request_data' => $request->all()]);
 
         $rules = [
+            'category_id'      => 'nullable|exists:service_categories,id',
             'name'             => 'required|string|min:3',
             'description'      => 'nullable|string',
             'type'             => 'required|in:fixed,per_unit,selectable,free,multiple_options',
             'fulfillment_type' => 'required|in:direct,staff_assisted',
             'offering_session' => 'required|in:pre_checkin,post_checkin,pre_checkout',
-
-            // gallery images (append)
-            // enforce: image file, allowed mimes, <= 2MB
-            'images'                      => 'nullable|array',
-            'images.*'                    => 'nullable|image|mimes:jpeg,jpg,png,webp|max:2048',
-
-            // legacy (store): option_images[optionKey]
-            'option_images'               => 'nullable|array',
-            'option_images.*'             => 'nullable|image|mimes:jpeg,jpg,png,webp|max:2048',
-
-            // update: option_images_new[optionKey]
-            'option_images_new'           => 'nullable|array',
-            'option_images_new.*'         => 'nullable|image|mimes:jpeg,jpg,png,webp|max:2048',
-
-            // delete lists
-            'images_to_delete'            => 'nullable|array',
-            'images_to_delete.*'          => 'integer',
-
-            'option_images_to_delete'     => 'nullable|array',
-            'option_images_to_delete.*'   => 'integer',
+            'images'           => 'nullable|array',
+            'images.*'         => 'nullable|image|mimes:jpeg,jpg,png,webp|max:2048',
+            'option_images'    => 'nullable|array',
+            'option_images.*'  => 'nullable|image|mimes:jpeg,jpg,png,webp|max:2048',
         ];
 
         if ($request->type === 'per_unit') {
@@ -496,44 +477,17 @@ class ServiceController extends Controller
             $rules['options.*.key'] = 'nullable|string';
         }
 
-        $validatedData = $request->validate($rules);
-
-        Log::info('SERVICE VALIDATION SUCCESS', ['validated_data' => $validatedData]);
-
-        return $validatedData;
+        return $request->validate($rules);
     }
 
     public function getImages(Service $service)
     {
-        $service->load([
-            'images',
-            'optionImages',
-        ]);
-
+        $service->load(['images', 'optionImages']);
         return response()->json([
-            'id'           => $service->id,
-            'name'         => $service->name,
-            'type'         => $service->type,
-
-            'images'       => $service->images->map(function ($img) {
-                return [
-                    'id'         => $img->id,
-                    'image_path' => $img->image_path,
-                    'caption'    => $img->caption,
-                    'url'        => asset('storage/' . $img->image_path),
-                ];
-            })->values(),
-
-            'optionImages' => $service->optionImages->map(function ($img) {
-                return [
-                    'id'          => $img->id,
-                    'option_key'  => $img->option_key,
-                    'option_name' => $img->option_name,
-                    'image_path'  => $img->image_path,
-                    'caption'     => $img->caption,
-                    'url'         => asset('storage/' . $img->image_path),
-                ];
-            })->values(),
+            'id' => $service->id,
+            'name' => $service->name,
+            'images' => $service->images,
+            'optionImages' => $service->optionImages,
         ]);
     }
 
