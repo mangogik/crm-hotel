@@ -98,6 +98,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/promotions/check-eligibility', [PromotionController::class, 'checkEligibility'])->name('promotions.checkEligibility');
         Route::get('/services/{service}/questions', [ServiceController::class, 'getQuestions']);
         Route::get('/services/{service}/images', [ServiceController::class, 'getImages'])->name('services.images');
+        Route::get('/rooms/{room}/images', [RoomController::class, 'images'])
+         ->name('rooms.images');
         Route::post('/ai/aieditor-proxy', [AIController::class, 'proxyAIEditor'])->name('ai.aieditor.proxy');
     });
 

@@ -22,6 +22,9 @@ import DeleteRoomModal from "@/components/rooms/DeleteRoomModal";
 import Pagination from "@/components/rooms/Pagination";
 import RoomTypesTable from "@/components/rooms/RoomTypesTable";
 
+// --- 1. IMPORT DIALOG GAMBAR ---
+import RoomImagesDialog from "@/components/rooms/RoomImagesDialog";
+
 export default function Rooms() {
     const { rooms, roomTypes, filters, flash } = usePage().props;
 
@@ -42,7 +45,12 @@ export default function Rooms() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [isTypeModalOpen, setIsTypeModalOpen] = useState(false); // Add Room Type
+    const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+
+    // --- 2. TAMBAHKAN STATE UNTUK DIALOG GAMBAR ---
+    const [isImagesModalOpen, setIsImagesModalOpen] = useState(false);
+    const [imagePreviewRoom, setImagePreviewRoom] = useState(null);
+    // ---------------------------------------------
 
     // Others
     const [currentRoom, setCurrentRoom] = useState(null);
@@ -100,6 +108,13 @@ export default function Rooms() {
         setCurrentRoom(room);
         setIsDeleteModalOpen(true);
     };
+
+    // --- 3. TAMBAHKAN HANDLER UNTUK DIALOG GAMBAR ---
+    const openImagesModal = (room) => {
+        setImagePreviewRoom({ id: room.id, name: room.room_number });
+        setIsImagesModalOpen(true);
+    };
+    // ----------------------------------------------
 
     // Callbacks
     const handleCreateSuccess = () => setIsCreateModalOpen(false);
@@ -180,6 +195,9 @@ export default function Rooms() {
                         toggleRow={toggleRow}
                         openEditModal={openEditModal}
                         openDeleteModal={openDeleteModal}
+                        // --- 4. PASS PROP KE TABLE ---
+                        openImagesModal={openImagesModal}
+                        // -----------------------------
                         sortBy={sortBy}
                         sortDirection={sortDirection}
                         handleSort={handleSort}
@@ -262,6 +280,15 @@ export default function Rooms() {
                     />
                 </DialogContent>
             </Dialog>
+
+            {/* --- 5. RENDER DIALOG GAMBAR --- */}
+            <RoomImagesDialog
+                open={isImagesModalOpen}
+                onOpenChange={setIsImagesModalOpen}
+                roomMeta={imagePreviewRoom}
+            />
+            {/* ------------------------------- */}
+
         </div>
     );
 }

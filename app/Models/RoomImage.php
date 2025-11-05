@@ -9,18 +9,8 @@ class RoomImage extends Model
 {
     use HasFactory;
 
-    /**
-     * Nama tabel yang terkait dengan model.
-     *
-     * @var string
-     */
     protected $table = 'room_images';
 
-    /**
-     * Atribut yang dapat diisi secara massal.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'room_id',
         'image_path',
@@ -28,10 +18,40 @@ class RoomImage extends Model
     ];
 
     /**
-     * Mendapatkan kamar yang memiliki gambar ini.
+     * Get the room that owns the image.
      */
     public function room()
     {
         return $this->belongsTo(Room::class);
+    }
+
+    /**
+     * Get the full URL for the image.
+     *
+     * @return string
+     */
+    public function getUrlAttribute()
+    {
+        return asset('storage/' . ltrim($this->image_path, '/'));
+    }
+
+    /**
+     * Get the image path.
+     *
+     * @return string
+     */
+    public function getImagePathAttribute($value)
+    {
+        return $value;
+    }
+
+    /**
+     * Get the image caption.
+     *
+     * @return string|null
+     */
+    public function getCaptionAttribute($value)
+    {
+        return $value;
     }
 }

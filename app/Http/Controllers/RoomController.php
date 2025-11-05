@@ -4,15 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Room;
 use App\Models\RoomType;
-use App\Models\RoomImage; // <-- Impor model gambar
+use App\Models\RoomImage;
 use App\Services\RoomStatusService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB; // <-- Impor DB
-use Illuminate\Support\Facades\Log; // <-- Impor Log
-use Illuminate\Support\Facades\Storage; // <-- Impor Storage
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage; // Pastikan Storage di-import
 
 class RoomController extends Controller
 {
@@ -21,7 +21,8 @@ class RoomController extends Controller
         // Eager load roomType dan images
         $query = Room::query()->with([
             'roomType:id,name,capacity,price_per_night',
-            'images' // <-- Eager load relasi gambar
+            'images' // <-- Hanya eager load relasi gambar room
+            // 'roomType.images' <-- DIHAPUS KARENA MENYEBABKAN ERROR
         ]);
 
         // Search: room_number atau nama room type
@@ -77,15 +78,12 @@ class RoomController extends Controller
             return $this->storeRoomRange($request, $roomSvc);
         }
 
-        // --- VALIDASI DIPERBARUI ---
         $data = $request->validate([
             'room_number'  => 'required|string|max:255|unique:rooms',
             'room_type_id' => 'required|exists:room_types,id',
             'status'       => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
-            
-            // --- INI PERUBAHANNYA ---
-            'images'       => 'required|array|min:1', // Wajib ada, minimal 1
-            'images.*'     => 'required|image|mimes:jpeg,jpg,png,webp|max:2048', // Setiap file wajib image
+            'images'       => 'required|array|min:1',
+            'images.*'     => 'required|image|mimes:jpeg,jpg,png,webp|max:2048',
         ]);
 
         DB::beginTransaction();
@@ -96,14 +94,12 @@ class RoomController extends Controller
                 'room_number'  => $data['room_number'],
                 'room_type_id' => $data['room_type_id'],
                 'status'       => $status,
-                // Slug akan dibuat otomatis oleh Model Room.php
             ]);
 
-            // --- LOGIKA GAMBAR DITAMBAHKAN ---
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $file) {
                     if ($file instanceof \Illuminate\Http\UploadedFile) {
-                        $path = $file->store('rooms', 'public'); // Simpan ke folder 'rooms'
+                        $path = $file->store('rooms', 'public');
                         RoomImage::create([
                             'room_id'    => $room->id,
                             'image_path' => $path,
@@ -112,7 +108,6 @@ class RoomController extends Controller
                     }
                 }
             }
-            // --- END LOGIKA GAMBAR ---
 
             if ($status !== 'maintenance') {
                 $roomSvc->recompute($room->id);
@@ -130,21 +125,17 @@ class RoomController extends Controller
 
     protected function storeRoomRange(Request $request, RoomStatusService $roomSvc)
     {
-        // --- VALIDASI DIPERBARUI ---
         $data = $request->validate([
             'start_room'   => 'required|string|max:255',
             'end_room'     => 'required|string|max:255',
             'room_type_id' => 'required|exists:room_types,id',
             'status'       => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
-
-            // --- INI PERUBAHANNYA ---
-            'images'       => 'required|array|min:1', // Wajib ada, minimal 1
-            'images.*'     => 'required|image|mimes:jpeg,jpg,png,webp|max:2048', // Setiap file wajib image
+            'images'       => 'required|array|min:1',
+            'images.*'     => 'required|image|mimes:jpeg,jpg,png,webp|max:2048',
         ]);
 
         $roomNumbers = $this->generateRoomNumbers($data['start_room'], $data['end_room']);
 
-        // Cek duplikat
         $existingRooms = Room::whereIn('room_number', $roomNumbers)->pluck('room_number')->toArray();
         if (!empty($existingRooms)) {
             return Redirect::back()->withErrors([
@@ -155,7 +146,6 @@ class RoomController extends Controller
         $status = ($data['status'] ?? 'available') === 'maintenance' ? 'maintenance' : 'available';
         $createdCount = 0;
 
-        // Siapkan file gambar sekali saja
         $imagePaths = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $file) {
@@ -174,7 +164,6 @@ class RoomController extends Controller
                     'status'       => $status,
                 ]);
 
-                // Lampirkan gambar yang sama ke setiap kamar yang dibuat
                 if (!empty($imagePaths)) {
                     foreach ($imagePaths as $path) {
                         RoomImage::create([
@@ -202,7 +191,6 @@ class RoomController extends Controller
 
     protected function generateRoomNumbers($start, $end)
     {
-        // Logika ini tetap sama
         $prefix = '';
         $numericStart = $start;
         $numericEnd = $end;
@@ -233,52 +221,40 @@ class RoomController extends Controller
 
     public function update(Request $request, Room $room, RoomStatusService $roomSvc)
     {
-        // --- VALIDASI DIPERBARUI ---
         $data = $request->validate([
             'room_number'  => ['required', 'string', 'max:255', Rule::unique('rooms')->ignore($room->id)],
             'room_type_id' => 'required|exists:room_types,id',
             'status'       => ['nullable', Rule::in(['available', 'occupied', 'maintenance'])],
-            
-            // Validasi untuk update tetap nullable, karena user mungkin tidak ingin MENGUBAH gambar
             'images'       => 'nullable|array', 
             'images.*'     => 'nullable|image|mimes:jpeg,jpg,png,webp|max:2048',
             'images_to_delete' => 'nullable|array',
             'images_to_delete.*' => 'nullable|integer|exists:room_images,id', 
         ]);
         
-        // --- LOGIKA BARU: Cek jika ini akan jadi tidak punya gambar ---
         $existingImageCount = $room->images()->count();
         $imagesToDeleteCount = is_array($data['images_to_delete'] ?? null) ? count($data['images_to_delete']) : 0;
         $newImagesCount = is_array($data['images'] ?? null) ? count($data['images']) : 0;
 
         if ($existingImageCount - $imagesToDeleteCount + $newImagesCount < 1) {
-             // Jika update ini akan menghasilkan 0 gambar, kembalikan error
-             // Kita tidak memberlakukan ini di 'store' karena sudah di-handle 'required'
-            return Redirect::back()->withErrors([
+             return Redirect::back()->withErrors([
                 'images' => 'A room must have at least one image.'
             ])->withInput();
         }
-        // --- END LOGIKA BARU ---
-
 
         DB::beginTransaction();
         try {
             $room->room_number  = $data['room_number'];
             $room->room_type_id = $data['room_type_id'];
-            // Slug akan diupdate otomatis oleh Model jika room_number berubah
 
             if (($data['status'] ?? $room->status) === 'maintenance') {
                 $room->status = 'maintenance';
                 $room->save();
             } else {
-                $room->status = 'available'; // Default ke available jika bukan maintenance
+                $room->status = 'available';
                 $room->save();
                 $roomSvc->recompute($room->id);
             }
 
-            // --- LOGIKA GAMBAR DITAMBAHKAN ---
-
-            // 1. Handle image deletions
             if ($request->has('images_to_delete')) {
                 $imagesToDelete = $request->input('images_to_delete');
                 if (is_array($imagesToDelete)) {
@@ -292,7 +268,6 @@ class RoomController extends Controller
                 }
             }
 
-            // 2. Handle new image uploads
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $file) {
                     if ($file instanceof \Illuminate\Http\UploadedFile) {
@@ -305,8 +280,6 @@ class RoomController extends Controller
                     }
                 }
             }
-            // --- END LOGIKA GAMBAR ---
-
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
@@ -325,14 +298,10 @@ class RoomController extends Controller
 
         DB::beginTransaction();
         try {
-            // Hapus semua file gambar dari storage
             foreach ($room->images as $img) {
                 Storage::disk('public')->delete($img->image_path);
-                // Record RoomImage akan terhapus otomatis oleh database (onDelete('cascade'))
             }
-
             $room->delete();
-            
             DB::commit();
         } catch (\Exception $e) {
              DB::rollBack();
@@ -342,5 +311,60 @@ class RoomController extends Controller
 
         return Redirect::route('rooms.index')->with('success', 'Room deleted successfully.');
     }
+
+    /**
+     * API endpoint untuk mengambil gambar untuk satu ruangan.
+     */
+public function images(Room $room)
+{
+    try {
+        // Pastikan relasi dimuat
+        $room->load('images');
+
+        // Log total gambar ditemukan
+        Log::info("Fetching images for Room ID {$room->id}", [
+            'total_images' => $room->images->count(),
+        ]);
+
+        // Jika tidak ada gambar sama sekali
+        if ($room->images->isEmpty()) {
+            Log::warning("No images found for Room ID {$room->id}");
+        }
+
+        // Mapping data gambar
+        $images = $room->images->map(function ($img) {
+            $url = $img->url; // Gunakan accessor, bukan getUrl()
+            Log::debug("RoomImage loaded", [
+                'id' => $img->id,
+                'path' => $img->image_path,
+                'generated_url' => $url,
+            ]);
+
+            return [
+                'id' => $img->id,
+                'url' => $url,
+                'caption' => $img->caption,
+            ];
+        });
+
+        // Log hasil akhir JSON sebelum dikirim
+        Log::info("Returning JSON for Room ID {$room->id}", [
+            'room_images' => $images,
+        ]);
+
+        return response()->json([
+            'room_images' => $images,
+            'room_type_images' => [], // Kosong by design
+        ]);
+    } catch (\Exception $e) {
+        Log::error("Error in RoomController@images for Room ID {$room->id}: " . $e->getMessage(), [
+            'trace' => $e->getTraceAsString(),
+        ]);
+
+        return response()->json([
+            'error' => 'Failed to fetch images.',
+        ], 500);
+    }
 }
 
+}
