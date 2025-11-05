@@ -1,6 +1,0 @@
-import{c as d,a as p}from"./button-CEil9SyP.js";import{r as m,j as n}from"./app-D9VRIkeW.js";import{b as v}from"./index-D7CwUK-e.js";/**
- * @license lucide-react v0.544.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const f=[["rect",{width:"18",height:"18",x:"3",y:"3",rx:"2",ry:"2",key:"1m3agn"}],["circle",{cx:"9",cy:"9",r:"2",key:"af1f0g"}],["path",{d:"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",key:"1xmnt7"}]],E=d("image",f);var h="Separator",e="horizontal",x=["horizontal","vertical"],s=m.forwardRef((a,t)=>{const{decorative:o,orientation:r=e,...c}=a,i=u(r)?r:e,l=o?{role:"none"}:{"aria-orientation":i==="vertical"?i:void 0,role:"separator"};return n.jsx(v.div,{"data-orientation":i,...l,...c,ref:t})});s.displayName=h;function u(a){return x.includes(a)}var N=s;function z({className:a,orientation:t="horizontal",decorative:o=!0,...r}){return n.jsx(N,{"data-slot":"separator",decorative:o,orientation:t,className:p("bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px",a),...r})}export{E as I,z as S};
