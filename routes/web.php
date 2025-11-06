@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\AIController;  
+use App\Http\Controllers\AIController;
 use App\Http\Controllers\InteractionController;
 use App\Http\Controllers\BookingController;
 use Illuminate\Foundation\Application;
@@ -99,7 +99,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/services/{service}/questions', [ServiceController::class, 'getQuestions']);
         Route::get('/services/{service}/images', [ServiceController::class, 'getImages'])->name('services.images');
         Route::get('/rooms/{room}/images', [RoomController::class, 'images'])
-         ->name('rooms.images');
+            ->name('rooms.images');
         Route::post('/ai/aieditor-proxy', [AIController::class, 'proxyAIEditor'])->name('ai.aieditor.proxy');
     });
 
@@ -135,6 +135,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/ai/generate-analysis', [AIController::class, 'generateAnalysis'])->name('ai.analytics.generate');
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [SettingController::class, 'update'])->name('settings.update');
+        Route::get('/chatbot-demo', function () {
+            return Inertia::render('ChatbotDemo');
+        })->name('chatbot.demo');
+        Route::get('/review-demo', function () {
+            return Inertia::render('ReviewDemo');
+        })->name('review    .demo');
     });
 });
 

@@ -246,9 +246,6 @@ const ServiceTableRow = ({
 
                             <div className="grid gap-3 md:grid-cols-3">
                                 
-                                {/* =================================================================== */}
-                                {/* 👇👇👇 PERUBAHAN DI SINI 👇👇👇                */}
-                                {/* =================================================================== */}
                                 <div className="bg-white rounded-md border shadow-sm p-3 md:col-span-1">
                                     <div className="flex items-center gap-2 mb-2">
                                         <div className="bg-indigo-100 p-1.5 rounded-full">
@@ -259,23 +256,29 @@ const ServiceTableRow = ({
                                         </h3>
                                     </div>
 
-                                    {/* Ganti 'service.description' dengan 'service.description_html' */}
-                                    <div className="text-sm text-muted-foreground">
+                                    {/* [PERUBAHAN]: 
+                                      'max-h-56 overflow-y-auto pr-2'
+                                      Ini membuat kotak info punya tinggi maksimal
+                                      dan scroll vertikal, sama seperti kotak lainnya.
+                                    */}
+                                    <div className="text-sm text-muted-foreground max-h-56 overflow-y-auto pr-2">
                                         {service.description_html ? (
                                             <div
-                                                // 'prose' dari @tailwindcss/typography
-                                                // 'prose-sm' membuatnya lebih kecil, 'max-w-none' menghapus batasan lebar
-                                                className="prose prose-sm max-w-none" 
+                                                // ===================================================================
+                                                // 👇👇👇 PERUBAHAN DI SINI 👇👇👇
+                                                // 'whitespace-normal' ditambahkan untuk memaksa text wrapping
+                                                // ===================================================================
+                                                className="prose prose-sm max-w-none whitespace-normal break-words" 
                                                 dangerouslySetInnerHTML={{ __html: service.description_html }}
                                             />
+                                            // ===================================================================
+                                            // 👆👆👆 AKHIR PERUBAHAN 👆👆👆
+                                            // ===================================================================
                                         ) : (
                                             <span>No description.</span>
                                         )}
                                     </div>
                                 </div>
-                                {/* =================================================================== */}
-                                {/* 👆👆👆 AKHIR PERUBAHAN 👆👆👆                */}
-                                {/* =================================================================== */}
 
                                 {/* Middle: Options */}
                                 {hasOptions && (

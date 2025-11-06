@@ -11,6 +11,7 @@ import {
     TicketPercent,
     UserStar,
     ChevronUp,
+    Bot, // <-- 1. IKON DITAMBAHKAN DI SINI
 } from "lucide-react";
 
 import useAuth from "@/hooks/useAuth";
@@ -125,6 +126,29 @@ const menuGroups = [
             },
         ],
     },
+    // ===================================================================
+    // 👇👇👇 2. GRUP BARU DITAMBAHKAN DI SINI 👇👇👇
+    // ===================================================================
+    {
+        title: "Widgets",
+        items: [
+            {
+                title: "Chat Bot", // Sesuai permintaan Anda
+                url: "/chatbot-demo", // URL dari route
+                icon: Bot, // Ikon baru
+                allowedRoles: ["manager", "front-office"], // Sesuai route
+            },
+            {
+                title: "Review Page",
+                url: "/review-demo",
+                icon: UserStar, // Menggunakan ikon yang sama dengan "Reviews"
+                allowedRoles: ["manager", "front-office"],
+            },
+        ],
+    },
+    // ===================================================================
+    // 👆👆👆 AKHIR PERUBAHAN 👆👆👆
+    // ===================================================================
 ];
 
 export function AppSidebar() {
@@ -134,9 +158,7 @@ export function AppSidebar() {
     // --- auth info ---
     const role = props?.auth?.user?.role || "";
     const userRole =
-        role.length > 0
-            ? role.charAt(0).toUpperCase() + role.slice(1)
-            : "";
+        role.length > 0 ? role.charAt(0).toUpperCase() + role.slice(1) : "";
 
     // --- branding / site info from AppServiceProvider ---
     // props.site bentuknya:
@@ -217,19 +239,14 @@ export function AppSidebar() {
 
                     return (
                         <SidebarGroup key={group.title}>
-                            <SidebarGroupLabel>
-                                {group.title}
-                            </SidebarGroupLabel>
+                            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
                             <SidebarGroupContent>
                                 <SidebarMenu>
                                     {permittedItems.map((item) => {
-                                        const active =
-                                            basePath === item.url;
+                                        const active = basePath === item.url;
 
                                         return (
-                                            <SidebarMenuItem
-                                                key={item.title}
-                                            >
+                                            <SidebarMenuItem key={item.title}>
                                                 <SidebarMenuButton
                                                     asChild
                                                     className={
@@ -268,14 +285,8 @@ export function AppSidebar() {
                                     {/* Avatar user */}
                                     <Avatar className="h-8 w-8 rounded-lg">
                                         <AvatarImage
-                                            src={
-                                                props.auth.user
-                                                    ?.avatar_url
-                                            }
-                                            alt={
-                                                props.auth.user
-                                                    ?.name
-                                            }
+                                            src={props.auth.user?.avatar_url}
+                                            alt={props.auth.user?.name}
                                         />
                                         <AvatarFallback className="rounded-lg">
                                             {props.auth.user?.name
@@ -287,10 +298,7 @@ export function AppSidebar() {
                                     {/* Info user */}
                                     <div className="grid flex-1 text-left text-sm leading-tight">
                                         <span className="truncate font-semibold">
-                                            {
-                                                props.auth.user
-                                                    ?.name
-                                            }
+                                            {props.auth.user?.name}
                                         </span>
                                         <span className="truncate text-xs text-muted-foreground">
                                             {userRole}

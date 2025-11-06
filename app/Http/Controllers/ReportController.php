@@ -180,6 +180,9 @@ class ReportController extends Controller
             ->where('o.status', 'paid')
             ->groupBy('o.booking_id');
 
+        // ===================================================================
+        // 👇👇👇 PERUBAHAN DI SINI 👇👇👇
+        // ===================================================================
         $bookingDetails = Booking::query()
             ->select([
                 'bookings.id',
@@ -189,12 +192,13 @@ class ReportController extends Controller
                 'bookings.checkout_at as checkout',
                 'bookings.status',
                 DB::raw('DATEDIFF(bookings.checkout_at, bookings.checkin_at) as nights'),
-                'rooms.price_per_night',
+                'room_types.price_per_night', // <-- DIGANTI dari rooms.price_per_night
                 DB::raw('COALESCE(st.service_total,0) as service_total'),
-                DB::raw('(DATEDIFF(bookings.checkout_at, bookings.checkin_at) * rooms.price_per_night) + COALESCE(st.service_total,0) as total')
+                DB::raw('(DATEDIFF(bookings.checkout_at, bookings.checkin_at) * room_types.price_per_night) + COALESCE(st.service_total,0) as total') // <-- DIGANTI dari rooms.price_per_night
             ])
             ->leftJoin('customers', 'customers.id', '=', 'bookings.customer_id')
             ->leftJoin('rooms', 'rooms.id', '=', 'bookings.room_id')
+            ->leftJoin('room_types', 'room_types.id', '=', 'rooms.room_type_id') // <-- JOIN INI DITAMBAHKAN
             ->leftJoinSub($serviceTotalsByBooking, 'st', function ($join) {
                 $join->on('st.booking_id', '=', 'bookings.id');
             })
@@ -214,6 +218,10 @@ class ReportController extends Controller
                     'total' => (float)$b->total,
                 ];
             });
+        // ===================================================================
+        // 👆👆👆 AKHIR PERUBAHAN 👆👆👆
+        // ===================================================================
+
 
         // === Recent Activity ===
         $recentActivity = BookingInteraction::query()
@@ -271,7 +279,7 @@ class ReportController extends Controller
             'activeGuests' => $activeGuests,
         ];
 
-              // --- DEBUGGING: Log hasil query sebelum dikirim ke frontend ---
+            // --- DEBUGGING: Log hasil query sebelum dikirim ke frontend ---
         Log::info('Report Data for Period: ' . $start->toDateString() . ' to ' . $end->toDateString());
         Log::info('Total Revenue: ' . $totalRevenue);
         Log::info('Booking Details Count: ' . $bookingDetails->count());
